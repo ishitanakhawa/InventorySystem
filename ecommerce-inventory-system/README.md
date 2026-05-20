@@ -44,71 +44,9 @@ ecommerce-inventory-system/
             └── CartManagement.jsx      # Cart and checkout queue
 ```
 
-## Color Scheme (Based on Style Guide)
 
-- **Primary Action**: #0D9488 (Dark teal/blue)
-- **Surface**: #FAFAF9 (Light off-white/beige)
-- **Border**: #E5E7EB (Light grey)
-- **Focus Ring**: #0F766E (Slightly darker teal/blue)
-- **Success**: #10B981 (Green)
-- **Info**: #3B82F6 (Blue)
-- **Warning**: #F59E0B (Orange)
-- **Error**: #EF4444 (Red)
 
-## Setup Instructions
-
-### C++ Backend
-
-#### Prerequisites
-- C++ compiler with C++17 support
-- CMake (optional, for build automation)
-
-#### Compile and Run
-
-**Using g++ directly:**
-```bash
-cd backend
-g++ -std=c++17 main.cpp -o inventory_system
-./inventory_system
-```
-
-**Using CMake:**
-```bash
-cd backend
-mkdir build
-cd build
-cmake ..
-make
-./inventory_system
-```
-
-### React Frontend
-
-#### Prerequisites
-- Node.js (v18 or higher)
-- npm or yarn
-
-#### Install Dependencies
-```bash
-cd frontend
-npm install
-```
-
-#### Run Development Server
-```bash
-npm run dev
-```
-
-The application will be available at `http://localhost:3000`
-
-#### Build for Production
-```bash
-npm run build
-```
-
-## Usage
-
-### C++ Backend Demo
+ C++ Backend Demo
 The C++ backend includes a comprehensive demo that showcases:
 - Product catalog operations (BST)
 - Warehouse network (Graph)
@@ -119,58 +57,57 @@ The C++ backend includes a comprehensive demo that showcases:
 
 Run the backend to see the demo output in the terminal.
 
-### React Frontend
+ React Frontend
 The React UI provides an interactive interface for:
-- **Dashboard**: Overview of system stats, demand forecasts, and restock orders
-- **Products**: Browse and search products with BST lookup visualization
-- **Inventory**: View warehouse inventory (Linked List) and network (Graph)
-- **Cart**: Shopping cart with undo/redo (Stack) and checkout queue (Priority Queue)
+- Dashboard: Overview of system stats, demand forecasts, and restock orders
+- Products: Browse and search products with BST lookup visualization
+- Inventory: View warehouse inventory (Linked List) and network (Graph)
+- Cart: Shopping cart with undo/redo (Stack) and checkout queue (Priority Queue)
 
-## Data Structures & Algorithms Explanation
+ Data Structures & Algorithms Explanation
 
-### BST (Binary Search Tree)
+ BST (Binary Search Tree)
 - Used for product catalog
 - Provides O(log n) average case search, insert, and delete operations
 - Products are indexed by ID for efficient lookup
-
-### Linked List
+ Linked List
 - Used for warehouse inventory
 - Each warehouse maintains a linked list of products
 - O(1) insertion at head, O(n) traversal
 
-### Graph
+ Graph
 - Used for warehouse network connections
 - Undirected graph representing warehouse relationships
 - Enables shortest path calculations for stock transfers
 
-### Stack
+Stack
 - Used for shopping cart undo/redo
 - LIFO (Last In, First Out) structure
 - O(1) push and pop operations
 
-### Priority Queue
+Priority Queue
 - Used for checkout queue
 - Loyalty members have higher priority
 - O(log n) enqueue and dequeue operations
 
-### Greedy Algorithm
+ Greedy Algorithm
 - Used for restocking optimization
 - Prioritizes products based on turnover rate × storage cost
 - Makes locally optimal choices at each step
 
-### Binary Search
+ Binary Search
 - Used for price range queries
 - Products sorted by price for efficient range searches
 - O(log n) search complexity
 
-## Team Roles (4 Members)
+ Team Roles (4 Members)
 
 - **P1**: Product catalog (BST + Linked List warehouses) + Inventory records
 - **P2**: Cart Stack (undo) + Checkout Queue + Stock validation
 - **P3**: Restocking greedy logic + Demand forecasting + Multi-level sorting
 - **P4**: BST lookups + Price range binary search + Supply chain graph
 
-## Custom Features
+ Custom Features
 
 The system includes several custom features beyond the requirements:
 - Real-time demand forecasting with seasonality factors
@@ -180,6 +117,6 @@ The system includes several custom features beyond the requirements:
 - Multi-level product sorting
 - Low stock alerts based on demand forecasts
 
-## License
+ License
 
 This is a mini-project for educational purposes.

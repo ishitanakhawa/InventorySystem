@@ -1,22 +1,53 @@
-import { useState } from 'react'
-import { Package, Warehouse, ShoppingCart, Users, BarChart3, TrendingUp, AlertTriangle, Menu, X, Bell, Settings, LogOut, FileText } from 'lucide-react'
-import ProductCatalog from './components/ProductCatalog'
-import InventoryManagement from './components/InventoryManagement'
-import CartManagement from './components/CartManagement'
-import Dashboard from './components/Dashboard'
-import ReportsAnalytics from './components/ReportsAnalytics'
+import { useState } from "react";
+import {
+  Package,
+  Warehouse,
+  ShoppingCart,
+  Users,
+  BarChart3,
+  TrendingUp,
+  AlertTriangle,
+  Menu,
+  X,
+  Bell,
+  Settings,
+  LogOut,
+} from "lucide-react";
+import ProductCatalog from "./components/ProductCatalog";
+import InventoryManagement from "./components/InventoryManagement";
+import CartManagement from "./components/CartManagement";
+import Dashboard from "./components/Dashboard";
 
 function App() {
-  const [activeTab, setActiveTab] = useState('dashboard')
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: BarChart3, description: 'Overview & Analytics' },
-    { id: 'products', label: 'Products', icon: Package, description: 'Product Catalog' },
-    { id: 'inventory', label: 'Inventory', icon: Warehouse, description: 'Warehouse Management' },
-    { id: 'cart', label: 'Cart', icon: ShoppingCart, description: 'Cart & Checkout' },
-    { id: 'reports', label: 'Reports', icon: FileText, description: 'Analytics & Reports' },
-  ]
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      icon: BarChart3,
+      description: "Overview & Analytics",
+    },
+    {
+      id: "products",
+      label: "Products",
+      icon: Package,
+      description: "Product Catalog",
+    },
+    {
+      id: "inventory",
+      label: "Inventory",
+      icon: Warehouse,
+      description: "Warehouse Management",
+    },
+    {
+      id: "cart",
+      label: "Cart",
+      icon: ShoppingCart,
+      description: "Cart & Checkout",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-surface">
@@ -29,16 +60,24 @@ function App() {
                 className="lg:hidden p-2 hover:bg-oatmeal/50 rounded-8 transition-colors"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               >
-                {mobileMenuOpen ? <X className="w-6 h-6 text-abyssal" /> : <Menu className="w-6 h-6 text-abyssal" />}
+                {mobileMenuOpen ? (
+                  <X className="w-6 h-6 text-abyssal" />
+                ) : (
+                  <Menu className="w-6 h-6 text-abyssal" />
+                )}
               </button>
               <div>
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 bg-blueFantastic rounded-16 flex items-center justify-center">
                     <Package className="w-6 h-6 text-palladian" />
                   </div>
-                  <h1 className="text-xl font-bold text-abyssal hidden sm:block">E-Commerce Inventory</h1>
+                  <h1 className="text-xl font-bold text-abyssal hidden sm:block">
+                    E-Commerce Inventory
+                  </h1>
                 </div>
-                <p className="text-xs text-gray-600 mt-0.5 hidden sm:block">Demand Forecasting & Supply Chain</p>
+                <p className="text-xs text-gray-600 mt-0.5 hidden sm:block">
+                  Demand Forecasting & Supply Chain
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -72,21 +111,21 @@ function App() {
           {/* Desktop Navigation */}
           <div className="hidden lg:flex gap-1">
             {tabs.map((tab) => {
-              const Icon = tab.icon
+              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-6 py-3 rounded-8 flex items-center gap-2 transition-all font-medium ${
                     activeTab === tab.id
-                      ? 'bg-blueFantastic text-palladian shadow-1'
-                      : 'text-gray-600 hover:bg-oatmeal/50 hover:text-abyssal'
+                      ? "bg-blueFantastic text-palladian shadow-1"
+                      : "text-gray-600 hover:bg-oatmeal/50 hover:text-abyssal"
                   }`}
                 >
                   <Icon className="w-4 h-4" />
                   {tab.label}
                 </button>
-              )
+              );
             })}
           </div>
 
@@ -94,18 +133,18 @@ function App() {
           {mobileMenuOpen && (
             <div className="lg:hidden py-4 space-y-2 animate-slideUp">
               {tabs.map((tab) => {
-                const Icon = tab.icon
+                const Icon = tab.icon;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => {
-                      setActiveTab(tab.id)
-                      setMobileMenuOpen(false)
+                      setActiveTab(tab.id);
+                      setMobileMenuOpen(false);
                     }}
                     className={`w-full px-4 py-3 rounded-8 flex items-center gap-3 transition-all ${
                       activeTab === tab.id
-                        ? 'bg-blueFantastic text-palladian font-medium'
-                        : 'text-gray-600 hover:bg-oatmeal/50'
+                        ? "bg-blueFantastic text-palladian font-medium"
+                        : "text-gray-600 hover:bg-oatmeal/50"
                     }`}
                   >
                     <Icon className="w-5 h-5" />
@@ -114,7 +153,7 @@ function App() {
                       <p className="text-xs opacity-75">{tab.description}</p>
                     </div>
                   </button>
-                )
+                );
               })}
             </div>
           )}
@@ -124,15 +163,14 @@ function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 min-h-[calc(100vh-73px-60px)]">
         <div className="animate-fadeIn">
-          {activeTab === 'dashboard' && <Dashboard />}
-          {activeTab === 'products' && <ProductCatalog />}
-          {activeTab === 'inventory' && <InventoryManagement />}
-          {activeTab === 'cart' && <CartManagement />}
-          {activeTab === 'reports' && <ReportsAnalytics />}
+          {activeTab === "dashboard" && <Dashboard />}
+          {activeTab === "products" && <ProductCatalog />}
+          {activeTab === "inventory" && <InventoryManagement />}
+          {activeTab === "cart" && <CartManagement />}
         </div>
       </main>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

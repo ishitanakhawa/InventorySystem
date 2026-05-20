@@ -1,55 +1,91 @@
-import { useState, useEffect } from 'react'
-import { Warehouse, Link2, AlertTriangle, CheckCircle, MapPin, Package, ArrowRight, TrendingUp, Plus, Trash2 } from 'lucide-react'
+import { useState, useEffect } from "react";
+import {
+  Warehouse,
+  Link2,
+  AlertTriangle,
+  CheckCircle,
+  MapPin,
+  Package,
+  ArrowRight,
+  TrendingUp,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 const InventoryManagement = () => {
-  const [selectedWarehouse, setSelectedWarehouse] = useState(1)
-  const [warehouses, setWarehouses] = useState([])
-  const [inventoryData, setInventoryData] = useState([])
-  const [connections, setConnections] = useState([])
-  const [showAddWarehouseModal, setShowAddWarehouseModal] = useState(false)
-  const [showTransferModal, setShowTransferModal] = useState(false)
-  const [selectedPath, setSelectedPath] = useState(null)
+  const [selectedWarehouse, setSelectedWarehouse] = useState(1);
+  const [warehouses, setWarehouses] = useState([]);
+  const [inventoryData, setInventoryData] = useState([]);
+  const [connections, setConnections] = useState([]);
+  const [showAddWarehouseModal, setShowAddWarehouseModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedPath, setSelectedPath] = useState(null);
 
   useEffect(() => {
-    loadData()
-  }, [selectedWarehouse])
+    loadData();
+  }, [selectedWarehouse]);
 
   const loadData = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/warehouses')
-      const data = await response.json()
-      setWarehouses(data)
-      
+      const response = await fetch("http://localhost:8080/api/warehouses");
+      const data = await response.json();
+      setWarehouses(data);
+
       // Mock inventory data (endpoint not implemented yet)
       const mockInventory = [
-        { id: 1, name: 'Laptop', quantity: 25, category: 'Electronics' },
-        { id: 2, name: 'Mouse', quantity: 80, category: 'Electronics' },
-        { id: 3, name: 'Keyboard', quantity: 60, category: 'Electronics' },
-        { id: 6, name: 'T-Shirt', quantity: 120, category: 'Clothing' },
-        { id: 9, name: 'Sneakers', quantity: 50, category: 'Footwear' },
-      ]
-      setInventoryData(mockInventory)
-      
+        { id: 1, name: "Laptop", quantity: 25, category: "Electronics" },
+        { id: 2, name: "Mouse", quantity: 80, category: "Electronics" },
+        { id: 3, name: "Keyboard", quantity: 60, category: "Electronics" },
+        { id: 6, name: "T-Shirt", quantity: 120, category: "Clothing" },
+        { id: 9, name: "Sneakers", quantity: 50, category: "Footwear" },
+      ];
+      setInventoryData(mockInventory);
+
       // Mock connections (endpoint not implemented yet)
       const mockConnections = [
         { id: 2, weight: 250 },
         { id: 3, weight: 2800 },
-      ]
-      setConnections(mockConnections)
+      ];
+      setConnections(mockConnections);
     } catch (error) {
-      console.error('Failed to load warehouses from backend:', error)
+      console.error("Failed to load warehouses from backend:", error);
       // Fallback to mock data
       const mockWarehouses = [
-        { id: 1, name: 'Main Warehouse', location: 'Central Hub', totalStock: 5230, capacity: 10000, status: 'Active' },
-        { id: 2, name: 'East Coast Hub', location: 'New York', totalStock: 3890, capacity: 8000, status: 'Active' },
-        { id: 3, name: 'West Coast Hub', location: 'California', totalStock: 3330, capacity: 7500, status: 'Active' },
-      ]
-      setWarehouses(mockWarehouses)
+        {
+          id: 1,
+          name: "Main Warehouse",
+          location: "Central Hub",
+          totalStock: 5230,
+          capacity: 10000,
+          status: "Active",
+        },
+        {
+          id: 2,
+          name: "East Coast Hub",
+          location: "New York",
+          totalStock: 3890,
+          capacity: 8000,
+          status: "Active",
+        },
+        {
+          id: 3,
+          name: "West Coast Hub",
+          location: "California",
+          totalStock: 3330,
+          capacity: 7500,
+          status: "Active",
+        },
+      ];
+      setWarehouses(mockWarehouses);
     }
-  }
+  };
 
-  const selectedWarehouseData = warehouses.find(w => w.id === selectedWarehouse)
-  const capacityPercentage = selectedWarehouseData ? (selectedWarehouseData.totalStock / selectedWarehouseData.capacity) * 100 : 0
+  const selectedWarehouseData = warehouses.find(
+    (w) => w.id === selectedWarehouse,
+  );
+  const capacityPercentage = selectedWarehouseData
+    ? (selectedWarehouseData.totalStock / selectedWarehouseData.capacity) * 100
+    : 0;
 
   const handleAddWarehouse = async (warehouseData) => {
     // TODO: Call C++ backend API
@@ -58,46 +94,56 @@ const InventoryManagement = () => {
       ...warehouseData,
       totalStock: 0,
       capacity: parseInt(warehouseData.capacity),
-      status: 'Active'
-    }
-    setWarehouses([...warehouses, newWarehouse])
-    loadData()
-    setShowAddWarehouseModal(false)
-  }
+      status: "Active",
+    };
+    setWarehouses([...warehouses, newWarehouse]);
+    loadData();
+    setShowAddWarehouseModal(false);
+  };
 
   const handleRemoveWarehouse = async (id) => {
     // TODO: Call C++ backend API
-    if (confirm('Are you sure you want to remove this warehouse?')) {
-      setWarehouses(warehouses.filter(w => w.id !== id))
+    if (confirm("Are you sure you want to remove this warehouse?")) {
+      setWarehouses(warehouses.filter((w) => w.id !== id));
       if (selectedWarehouse === id) {
-        setSelectedWarehouse(warehouses[0]?.id || 1)
+        setSelectedWarehouse(warehouses[0]?.id || 1);
       }
-      loadData()
+      loadData();
     }
-  }
+  };
 
   const handleFindShortestPath = async (toWarehouseId) => {
     try {
-      const response = await fetch(`http://localhost:8080/api/warehouses/shortest-path?from=${selectedWarehouse}&to=${toWarehouseId}`)
-      const data = await response.json()
-      setSelectedPath(data)
-      setShowTransferModal(true)
+      const response = await fetch(
+        `http://localhost:8080/api/warehouses/shortest-path?from=${selectedWarehouse}&to=${toWarehouseId}`,
+      );
+      const data = await response.json();
+      setSelectedPath(data);
+      setShowTransferModal(true);
     } catch (error) {
-      console.error('Failed to find shortest path:', error)
+      console.error("Failed to find shortest path:", error);
       // Fallback to mock data
-      const mockPath = { path: [selectedWarehouse, toWarehouseId], distance: 250 }
-      setSelectedPath(mockPath)
-      setShowTransferModal(true)
+      const mockPath = {
+        path: [selectedWarehouse, toWarehouseId],
+        distance: 250,
+      };
+      setSelectedPath(mockPath);
+      setShowTransferModal(true);
     }
-  }
+  };
 
-  const handleStockTransfer = async (fromWarehouseId, toWarehouseId, productId, quantity) => {
+  const handleStockTransfer = async (
+    fromWarehouseId,
+    toWarehouseId,
+    productId,
+    quantity,
+  ) => {
     // TODO: Call C++ backend API
-    alert('Stock transferred successfully!')
-    loadData()
-    setShowTransferModal(false)
-    setSelectedPath(null)
-  }
+    alert("Stock transferred successfully!");
+    loadData();
+    setShowTransferModal(false);
+    setSelectedPath(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -109,117 +155,10 @@ const InventoryManagement = () => {
           </div>
           <div>
             <h2 className="text-2xl font-semibold">Inventory Management</h2>
-            <p className="text-sm text-gray-500">Monitor and manage warehouse inventory</p>
+            <p className="text-sm text-gray-500">
+              Monitor and manage warehouse inventory
+            </p>
           </div>
-        </div>
-<<<<<<< HEAD
-        
-=======
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowAddWarehouseModal(true)}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Add Warehouse
-          </button>
-          <div className="chip chip-gray">
-            <Link2 className="w-4 h-4 inline mr-1" />
-            Linked List
-          </div>
-          <div className="chip chip-primary">
-            <Link2 className="w-4 h-4 inline mr-1" />
-            Graph Network
-          </div>
-        </div>
->>>>>>> e2eaec53ff434469d2a91de2f286c646dfc4a507
-      </div>
-
-      {/* Warehouse Selection */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Select Warehouse</h3>
-          <span className="text-sm text-gray-500">{warehouses.length} warehouses available</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {warehouses.map((warehouse) => (
-            <button
-              key={warehouse.id}
-              onClick={() => setSelectedWarehouse(warehouse.id)}
-              className={`p-5 rounded-16 border-2 transition-all duration-300 group ${
-                selectedWarehouse === warehouse.id
-                  ? 'border-primary bg-primary/5 shadow-2'
-                  : 'border-border hover:border-gray-300 hover:shadow-1'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Warehouse className={`w-5 h-5 ${selectedWarehouse === warehouse.id ? 'text-primary' : 'text-gray-400'}`} />
-                  <span className="font-semibold">{warehouse.name}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`chip text-xs ${warehouse.status === 'Active' ? 'chip-primary' : 'chip-gray'}`}>
-                    {warehouse.status}
-                  </span>
-                  {warehouses.length > 1 && (
-                    <button
-                      onClick={() => handleRemoveWarehouse(warehouse.id)}
-                      className="p-1 text-error hover:bg-error/10 rounded-8 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <MapPin className="w-4 h-4" />
-                  {warehouse.location}
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Stock</span>
-                  <span className="font-medium">{warehouse.totalStock.toLocaleString()} units</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-1.5">
-                  <div 
-                    className="h-1.5 rounded-full bg-primary transition-all duration-300"
-                    style={{ width: `${(warehouse.totalStock / warehouse.capacity) * 100}%` }}
-                  ></div>
-                </div>
-                <div className="text-xs text-gray-500 text-right">
-                  {Math.round((warehouse.totalStock / warehouse.capacity) * 100)}% capacity
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Warehouse Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-          <div className="flex items-center gap-3 mb-2">
-            <Package className="w-5 h-5 text-primary" />
-            <span className="text-sm text-gray-600">Total Stock</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{selectedWarehouseData?.totalStock.toLocaleString()}</p>
-          <p className="text-xs text-gray-500 mt-1">units in warehouse</p>
-        </div>
-        <div className="card bg-gradient-to-br from-info/5 to-info/10 border-info/20">
-          <div className="flex items-center gap-3 mb-2">
-            <Warehouse className="w-5 h-5 text-info" />
-            <span className="text-sm text-gray-600">Capacity</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{selectedWarehouseData?.capacity.toLocaleString()}</p>
-          <p className="text-xs text-gray-500 mt-1">maximum capacity</p>
-        </div>
-        <div className="card bg-gradient-to-br from-warning/5 to-warning/10 border-warning/20">
-          <div className="flex items-center gap-3 mb-2">
-            <AlertTriangle className="w-5 h-5 text-warning" />
-            <span className="text-sm text-gray-600">Low Stock Items</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">2</p>
-          <p className="text-xs text-gray-500 mt-1">need attention</p>
         </div>
       </div>
 
@@ -233,7 +172,6 @@ const InventoryManagement = () => {
               </div>
               <h3 className="font-semibold">Warehouse Inventory</h3>
             </div>
-           
           </div>
           <div className="space-y-3">
             {inventoryData.map((item, index) => (
@@ -250,15 +188,25 @@ const InventoryManagement = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="font-semibold text-gray-900">{item.name}</p>
-                        <span className="chip chip-gray text-xs">{item.category}</span>
+                        <p className="font-semibold text-gray-900">
+                          {item.name}
+                        </p>
+                        <span className="chip chip-gray text-xs">
+                          {item.category}
+                        </span>
                       </div>
-                      <p className="text-sm text-gray-500">Product ID: {item.productId}</p>
+                      <p className="text-sm text-gray-500">
+                        Product ID: {item.productId}
+                      </p>
                     </div>
                     <div className="text-right ml-4">
-                      <p className="text-xl font-bold text-gray-900">{item.quantity}</p>
+                      <p className="text-xl font-bold text-gray-900">
+                        {item.quantity}
+                      </p>
                       <p className="text-sm text-gray-500">units</p>
-                      <span className={`chip text-xs mt-1 ${item.status === 'Low Stock' ? 'chip-primary' : 'chip-gray'}`}>
+                      <span
+                        className={`chip text-xs mt-1 ${item.status === "Low Stock" ? "chip-primary" : "chip-gray"}`}
+                      >
                         {item.status}
                       </span>
                     </div>
@@ -278,23 +226,33 @@ const InventoryManagement = () => {
               </div>
               <h3 className="font-semibold">Warehouse Network</h3>
             </div>
-           
           </div>
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 rounded-12">
-              <p className="text-sm text-gray-600 mb-3 font-medium">Connected Warehouses:</p>
+              <p className="text-sm text-gray-600 mb-3 font-medium">
+                Connected Warehouses:
+              </p>
               <div className="space-y-3">
                 {connections.map((conn, index) => {
-                  const connectedWarehouse = warehouses.find(w => w.id === conn.id)
+                  const connectedWarehouse = warehouses.find(
+                    (w) => w.id === conn.id,
+                  );
                   return (
-                    <div key={index} className="flex items-center justify-between p-4 bg-white rounded-12 border border-border hover:shadow-1 transition-all">
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-4 bg-white rounded-12 border border-border hover:shadow-1 transition-all"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-success/10 rounded-8">
                           <CheckCircle className="w-5 h-5 text-success" />
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900">{connectedWarehouse?.name}</p>
-                          <p className="text-sm text-gray-500">{connectedWarehouse?.location}</p>
+                          <p className="font-semibold text-gray-900">
+                            {connectedWarehouse?.name}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {connectedWarehouse?.location}
+                          </p>
                         </div>
                       </div>
                       <div className="text-right">
@@ -310,7 +268,7 @@ const InventoryManagement = () => {
                         </button>
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             </div>
@@ -328,7 +286,9 @@ const InventoryManagement = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-500">25 units</span>
-                    <span className="chip chip-primary text-xs">Restock Needed</span>
+                    <span className="chip chip-primary text-xs">
+                      Restock Needed
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-white rounded-8 border border-border">
@@ -338,7 +298,9 @@ const InventoryManagement = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-500">50 units</span>
-                    <span className="chip chip-primary text-xs">Restock Needed</span>
+                    <span className="chip chip-primary text-xs">
+                      Restock Needed
+                    </span>
                   </div>
                 </div>
               </div>
@@ -346,8 +308,6 @@ const InventoryManagement = () => {
           </div>
         </div>
       </div>
-<<<<<<< HEAD
-=======
 
       {/* Data Structure Info */}
       <div className="card bg-gradient-to-r from-primary/5 to-info/5 border-primary/20">
@@ -364,8 +324,10 @@ const InventoryManagement = () => {
               <h4 className="font-semibold text-gray-900">Linked List</h4>
             </div>
             <p className="text-sm text-gray-600">
-              Each warehouse maintains inventory as a linked list for efficient insertion and deletion operations.
-              <span className="font-medium text-primary"> O(1)</span> insertion at head, 
+              Each warehouse maintains inventory as a linked list for efficient
+              insertion and deletion operations.
+              <span className="font-medium text-primary"> O(1)</span> insertion
+              at head,
               <span className="font-medium text-primary"> O(n)</span> traversal.
             </p>
           </div>
@@ -375,8 +337,10 @@ const InventoryManagement = () => {
               <h4 className="font-semibold text-gray-900">Graph (Dijkstra)</h4>
             </div>
             <p className="text-sm text-gray-600">
-              Warehouse connections form an undirected graph enabling shortest path calculations using
-              Dijkstra's algorithm for optimal stock transfer. <span className="font-medium text-primary">O((V+E)log V)</span>
+              Warehouse connections form an undirected graph enabling shortest
+              path calculations using Dijkstra's algorithm for optimal stock
+              transfer.{" "}
+              <span className="font-medium text-primary">O((V+E)log V)</span>
             </p>
           </div>
         </div>
@@ -387,7 +351,10 @@ const InventoryManagement = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="card p-6 w-full max-w-md animate-fadeIn">
             <h3 className="text-xl font-semibold mb-4">Add New Warehouse</h3>
-            <AddWarehouseForm onSubmit={handleAddWarehouse} onCancel={() => setShowAddWarehouseModal(false)} />
+            <AddWarehouseForm
+              onSubmit={handleAddWarehouse}
+              onCancel={() => setShowAddWarehouseModal(false)}
+            />
           </div>
         </div>
       )}
@@ -399,45 +366,50 @@ const InventoryManagement = () => {
             <h3 className="text-xl font-semibold mb-4">Stock Transfer</h3>
             <div className="space-y-4">
               <div className="p-4 bg-primary/5 rounded-12">
-                <p className="text-sm text-gray-600 mb-2">Shortest Path (Dijkstra):</p>
-                <p className="font-medium">{selectedPath.path.join(' → ')}</p>
-                <p className="text-sm text-gray-600 mt-1">Distance: {selectedPath.distance} miles</p>
+                <p className="text-sm text-gray-600 mb-2">
+                  Shortest Path (Dijkstra):
+                </p>
+                <p className="font-medium">{selectedPath.path.join(" → ")}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Distance: {selectedPath.distance} miles
+                </p>
               </div>
-              <StockTransferForm 
+              <StockTransferForm
                 fromWarehouse={selectedWarehouse}
                 toWarehouse={selectedPath.path[selectedPath.path.length - 1]}
                 inventory={inventoryData}
                 onTransfer={handleStockTransfer}
                 onCancel={() => {
-                  setShowTransferModal(false)
-                  setSelectedPath(null)
+                  setShowTransferModal(false);
+                  setSelectedPath(null);
                 }}
               />
             </div>
           </div>
         </div>
       )}
->>>>>>> e2eaec53ff434469d2a91de2f286c646dfc4a507
     </div>
-  )
-}
+  );
+};
 
 const AddWarehouseForm = ({ onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
-    name: '',
-    location: '',
-    capacity: ''
-  })
+    name: "",
+    location: "",
+    capacity: "",
+  });
 
   const handleSubmit = (e) => {
-    e.preventDefault()
-    onSubmit(formData)
-  }
+    e.preventDefault();
+    onSubmit(formData);
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Warehouse Name</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Warehouse Name
+        </label>
         <input
           type="text"
           value={formData.name}
@@ -447,46 +419,75 @@ const AddWarehouseForm = ({ onSubmit, onCancel }) => {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Location
+        </label>
         <input
           type="text"
           value={formData.location}
-          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+          onChange={(e) =>
+            setFormData({ ...formData, location: e.target.value })
+          }
           className="input w-full"
           required
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Capacity
+        </label>
         <input
           type="number"
           value={formData.capacity}
-          onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+          onChange={(e) =>
+            setFormData({ ...formData, capacity: e.target.value })
+          }
           className="input w-full"
           required
         />
       </div>
       <div className="flex gap-2 pt-4">
-        <button type="submit" className="btn-primary flex-1">Add Warehouse</button>
-        <button type="button" onClick={onCancel} className="btn-tertiary flex-1">Cancel</button>
+        <button type="submit" className="btn-primary flex-1">
+          Add Warehouse
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="btn-tertiary flex-1"
+        >
+          Cancel
+        </button>
       </div>
     </form>
-  )
-}
+  );
+};
 
-const StockTransferForm = ({ fromWarehouse, toWarehouse, inventory, onTransfer, onCancel }) => {
-  const [selectedProduct, setSelectedProduct] = useState('')
-  const [quantity, setQuantity] = useState('')
+const StockTransferForm = ({
+  fromWarehouse,
+  toWarehouse,
+  inventory,
+  onTransfer,
+  onCancel,
+}) => {
+  const [selectedProduct, setSelectedProduct] = useState("");
+  const [quantity, setQuantity] = useState("");
 
   const handleSubmit = (e) => {
-    e.preventDefault()
-    onTransfer(fromWarehouse, toWarehouse, parseInt(selectedProduct), parseInt(quantity))
-  }
+    e.preventDefault();
+    onTransfer(
+      fromWarehouse,
+      toWarehouse,
+      parseInt(selectedProduct),
+      parseInt(quantity),
+    );
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Product
+        </label>
         <select
           value={selectedProduct}
           onChange={(e) => setSelectedProduct(e.target.value)}
@@ -494,7 +495,7 @@ const StockTransferForm = ({ fromWarehouse, toWarehouse, inventory, onTransfer, 
           required
         >
           <option value="">Select product...</option>
-          {inventory.map(item => (
+          {inventory.map((item) => (
             <option key={item.id} value={item.id}>
               {item.name} (Available: {item.quantity})
             </option>
@@ -502,7 +503,9 @@ const StockTransferForm = ({ fromWarehouse, toWarehouse, inventory, onTransfer, 
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Quantity
+        </label>
         <input
           type="number"
           min="1"
@@ -513,11 +516,19 @@ const StockTransferForm = ({ fromWarehouse, toWarehouse, inventory, onTransfer, 
         />
       </div>
       <div className="flex gap-2 pt-4">
-        <button type="submit" className="btn-primary flex-1">Transfer Stock</button>
-        <button type="button" onClick={onCancel} className="btn-tertiary flex-1">Cancel</button>
+        <button type="submit" className="btn-primary flex-1">
+          Transfer Stock
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="btn-tertiary flex-1"
+        >
+          Cancel
+        </button>
       </div>
     </form>
-  )
-}
+  );
+};
 
-export default InventoryManagement
+export default InventoryManagement;

@@ -9,7 +9,6 @@
 #include <cmath>
 using namespace std;
 
-// ==================== DATA STRUCTURES ====================
 
 // Product Structure
 struct Product {
@@ -214,7 +213,6 @@ public:
     }
 };
 
-// ==================== CART MANAGEMENT (STACK) ====================
 class ShoppingCart {
 private:
     stack<CartItem*> cartStack;
@@ -405,7 +403,7 @@ public:
     }
 };
 
-// ==================== MULTI-LEVEL SORTING ====================
+
 class ProductSorter {
 public:
     static vector<Product*> sortByCategoryPopularityPrice(vector<Product*> products) {
@@ -424,7 +422,7 @@ public:
     }
 };
 
-// ==================== MAIN SYSTEM ====================
+
 class ECommerceSystem {
 private:
     ProductCatalog catalog;
