@@ -21,15 +21,6 @@ const Dashboard = () => {
     { product: 'Sneakers', quantity: 30, priority: 'High', urgency: 'Urgent' },
   ]
 
-  const dataStructures = [
-    { name: 'BST', description: 'Product Catalog (O(log n) lookup)', icon: '🌳' },
-    { name: 'Linked List', description: 'Warehouse Inventory', icon: '🔗' },
-    { name: 'Graph', description: 'Warehouse Network', icon: '🕸️' },
-    { name: 'Stack', description: 'Cart Undo/Redo', icon: '📚' },
-    { name: 'Priority Queue', description: 'Checkout (Loyalty Priority)', icon: '🚦' },
-    { name: 'Greedy Algorithm', description: 'Restocking Optimization', icon: '⚡' },
-  ]
-
   return (
     <div className="space-y-8">
       {/* Header Section */}
@@ -71,7 +62,6 @@ const Dashboard = () => {
               </div>
               <h2 className="text-xl font-semibold">Demand Forecasting</h2>
             </div>
-            <div className="chip chip-gray text-xs">AI-Powered</div>
           </div>
           <div className="space-y-4">
             {forecasts.map((item) => (
@@ -111,7 +101,6 @@ const Dashboard = () => {
               </div>
               <h2 className="text-xl font-semibold">Restock Orders</h2>
             </div>
-            <div className="chip chip-primary text-xs">Greedy Algorithm</div>
           </div>
           <div className="space-y-4">
             {restockOrders.map((order) => (
@@ -135,46 +124,6 @@ const Dashboard = () => {
               </div>
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* System Info */}
-      <div className="card">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="p-2 bg-primary/10 rounded-8">
-            <Activity className="w-5 h-5 text-primary" />
-          </div>
-          <h2 className="text-xl font-semibold">Data Structures & Algorithms</h2>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {dataStructures.map((ds) => (
-            <div key={ds.name} className="p-5 bg-gradient-to-br from-gray-50 to-white rounded-16 border border-border hover:shadow-2 transition-all duration-300 group">
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl group-hover:scale-125 transition-transform">{ds.icon}</span>
-                <p className="font-semibold text-gray-900">{ds.name}</p>
-              </div>
-              <p className="text-sm text-gray-500">{ds.description}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="card">
-        <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="p-4 bg-primary text-white rounded-16 hover:bg-primary-hover transition-colors flex items-center gap-3">
-            <Package className="w-5 h-5" />
-            <span className="font-medium">Add New Product</span>
-          </button>
-          <button className="p-4 bg-gray-700 text-white rounded-16 hover:bg-gray-600 transition-colors flex items-center gap-3">
-            <Warehouse className="w-5 h-5" />
-            <span className="font-medium">Manage Inventory</span>
-          </button>
-          <button className="p-4 bg-gray-100 text-gray-700 rounded-16 hover:bg-gray-200 transition-colors flex items-center gap-3">
-            <TrendingUp className="w-5 h-5" />
-            <span className="font-medium">View Reports</span>
-          </button>
         </div>
       </div>
     </div>

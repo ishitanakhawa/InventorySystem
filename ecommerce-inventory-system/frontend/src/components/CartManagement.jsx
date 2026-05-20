@@ -79,16 +79,6 @@ const CartManagement = () => {
             <p className="text-sm text-gray-500">Manage shopping carts and checkout queue</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <div className="chip chip-gray">
-            <Undo className="w-4 h-4 inline mr-1" />
-            Stack (Undo/Redo)
-          </div>
-          <div className="chip chip-primary">
-            <Users className="w-4 h-4 inline mr-1" />
-            Priority Queue
-          </div>
-        </div>
       </div>
 
       {/* Stats Bar */}
@@ -392,45 +382,7 @@ const CartManagement = () => {
         </div>
       </div>
 
-      {/* Data Structure Info */}
-      <div className="card bg-gradient-to-r from-primary/5 to-info/5 border-primary/20">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="p-2 bg-primary/10 rounded-8">
-            <Sparkles className="w-5 h-5 text-primary" />
-          </div>
-          <h3 className="font-semibold">Data Structures Used</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-5 bg-white rounded-16 border border-border hover:shadow-1 transition-all">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-2xl">📚</span>
-              <h4 className="font-semibold text-gray-900">Stack (LIFO)</h4>
-            </div>
-            <p className="text-sm text-gray-600 mb-2">
-              Shopping cart uses a stack structure for undo/redo functionality. 
-              Last added item is removed first during undo.
-            </p>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="font-medium text-primary">O(1)</span>
-              <span className="text-gray-500">push/pop operations</span>
-            </div>
-          </div>
-          <div className="p-5 bg-white rounded-16 border border-border hover:shadow-1 transition-all">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-2xl">🚦</span>
-              <h4 className="font-semibold text-gray-900">Priority Queue</h4>
-            </div>
-            <p className="text-sm text-gray-600 mb-2">
-              Checkout queue prioritizes loyalty members using a priority queue. 
-              Ensures loyal customers are served first.
-            </p>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="font-medium text-primary">O(log n)</span>
-              <span className="text-gray-500">enqueue/dequeue</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      
 
       {/* Stock Validation Alert */}
       <div className="alert alert-warning">

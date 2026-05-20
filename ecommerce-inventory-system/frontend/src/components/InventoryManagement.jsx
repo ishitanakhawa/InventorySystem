@@ -40,16 +40,7 @@ const InventoryManagement = () => {
             <p className="text-sm text-gray-500">Monitor and manage warehouse inventory</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <div className="chip chip-gray">
-            <Link2 className="w-4 h-4 inline mr-1" />
-            Linked List
-          </div>
-          <div className="chip chip-primary">
-            <Link2 className="w-4 h-4 inline mr-1" />
-            Graph Network
-          </div>
-        </div>
+        
       </div>
 
       {/* Warehouse Selection */}
@@ -140,7 +131,7 @@ const InventoryManagement = () => {
               </div>
               <h3 className="font-semibold">Warehouse Inventory</h3>
             </div>
-            <div className="chip chip-gray text-xs">Linked List Structure</div>
+           
           </div>
           <div className="space-y-3">
             {inventoryData.map((item, index) => (
@@ -185,7 +176,7 @@ const InventoryManagement = () => {
               </div>
               <h3 className="font-semibold">Warehouse Network</h3>
             </div>
-            <div className="chip chip-primary text-xs">Graph Structure</div>
+           
           </div>
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 rounded-12">
@@ -248,39 +239,6 @@ const InventoryManagement = () => {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Data Structure Info */}
-      <div className="card bg-gradient-to-r from-primary/5 to-info/5 border-primary/20">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="p-2 bg-primary/10 rounded-8">
-            <TrendingUp className="w-5 h-5 text-primary" />
-          </div>
-          <h3 className="font-semibold">Data Structures Used</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-5 bg-white rounded-16 border border-border hover:shadow-1 transition-all">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-2xl">🔗</span>
-              <h4 className="font-semibold text-gray-900">Linked List</h4>
-            </div>
-            <p className="text-sm text-gray-600">
-              Each warehouse maintains inventory as a linked list for efficient insertion and deletion operations.
-              <span className="font-medium text-primary"> O(1)</span> insertion at head, 
-              <span className="font-medium text-primary"> O(n)</span> traversal.
-            </p>
-          </div>
-          <div className="p-5 bg-white rounded-16 border border-border hover:shadow-1 transition-all">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-2xl">🕸️</span>
-              <h4 className="font-semibold text-gray-900">Graph</h4>
-            </div>
-            <p className="text-sm text-gray-600">
-              Warehouse connections form an undirected graph enabling shortest path calculations for
-              optimal stock transfer between locations. Supports efficient route planning.
-            </p>
           </div>
         </div>
       </div>

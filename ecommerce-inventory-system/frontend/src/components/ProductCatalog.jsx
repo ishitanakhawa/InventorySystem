@@ -64,10 +64,6 @@ const ProductCatalog = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <div className="chip chip-primary">
-            <Package className="w-4 h-4 inline mr-1" />
-            BST: O(log n)
-          </div>
           <div className="chip chip-gray">
             {sortedProducts.length} products
           </div>
@@ -234,22 +230,6 @@ const ProductCatalog = () => {
           ))}
         </div>
       )}
-
-      {/* Binary Search Info */}
-      <div className="card bg-gradient-to-r from-primary/5 to-info/5 border-primary/20">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-primary/10 rounded-12">
-            <Search className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-1">Price Range Search (Binary Search)</h3>
-            <p className="text-sm text-gray-600">
-              Products are sorted by price for efficient binary search operations with O(log n) complexity. 
-              Set min/max price filters to see the binary search algorithm in action.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
