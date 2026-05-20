@@ -1,65 +1,133 @@
-import { useState } from 'react'
-import { ShoppingCart, Undo, Redo, Users, Clock, CheckCircle, AlertTriangle, Crown, Trash2, Plus, Minus, Sparkles, ArrowRight, Truck, Shield, Star, RefreshCw } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ShoppingCart, Undo, Redo, Users, Clock, CheckCircle, AlertTriangle, Crown, Trash2, Plus, Minus, Sparkles, ArrowRight, Truck, Shield, Star, RefreshCw, Package } from 'lucide-react'
 
 const CartManagement = () => {
-  const [cartItems, setCartItems] = useState([
-    { id: 1, name: 'Laptop', price: 999.99, quantity: 1, timestamp: new Date(), image: '💻', category: 'Electronics', stock: 50 },
-    { id: 2, name: 'Mouse', price: 29.99, quantity: 2, timestamp: new Date(), image: '🖱️', category: 'Electronics', stock: 200 },
-    { id: 6, name: 'T-Shirt', price: 19.99, quantity: 3, timestamp: new Date(), image: '👕', category: 'Clothing', stock: 300 },
-  ])
-  const [undoStack, setUndoStack] = useState([])
-  const [checkoutQueue, setCheckoutQueue] = useState([
-    { id: 1, name: 'John Doe', isLoyaltyMember: true, cartTotal: 1029.97, items: 3, waitTime: '2 min' },
-    { id: 2, name: 'Jane Smith', isLoyaltyMember: false, cartTotal: 159.99, items: 2, waitTime: '5 min' },
-    { id: 3, name: 'Bob Wilson', isLoyaltyMember: true, cartTotal: 89.99, items: 1, waitTime: '8 min' },
-    { id: 4, name: 'Alice Brown', isLoyaltyMember: false, cartTotal: 299.99, items: 4, waitTime: '12 min' },
-  ])
+  const [cartItems, setCartItems] = useState([])
+  const [checkoutQueue, setCheckoutQueue] = useState([])
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false)
 
-  const handleUndo = () => {
-    if (cartItems.length > 0) {
-      const lastItem = cartItems[cartItems.length - 1]
-      setUndoStack([...undoStack, lastItem])
-      setCartItems(cartItems.slice(0, -1))
-    }
-  }
+  useEffect(() => {
+    loadData()
+  }, [])
 
-  const handleRedo = () => {
-    if (undoStack.length > 0) {
-      const lastUndone = undoStack[undoStack.length - 1]
-      setUndoStack(undoStack.slice(0, -1))
-      setCartItems([...cartItems, lastUndone])
-    }
-  }
-
-  const handleCheckout = () => {
-    const nextCustomer = checkoutQueue[0]
-    if (nextCustomer) {
-      setCheckoutQueue(checkoutQueue.slice(1))
-      alert(`Processing checkout for ${nextCustomer.name}`)
-    }
-  }
-
-  const clearCart = () => {
-    if (cartItems.length > 0) {
-      setUndoStack([...undoStack, ...cartItems])
+  const loadData = async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/cart')
+      const data = await response.json()
+      setCartItems(data)
+      
+      // Mock queue data (endpoint not implemented yet)
+      const mockQueue = [
+        { id: 1, name: 'John Doe', isLoyaltyMember: true, cartTotal: 1029.97, items: 3, waitTime: '2 min' },
+        { id: 2, name: 'Jane Smith', isLoyaltyMember: false, cartTotal: 159.99, items: 2, waitTime: '5 min' },
+        { id: 3, name: 'Bob Wilson', isLoyaltyMember: true, cartTotal: 89.99, items: 1, waitTime: '8 min' },
+        { id: 4, name: 'Alice Brown', isLoyaltyMember: false, cartTotal: 299.99, items: 4, waitTime: '12 min' },
+      ]
+      setCheckoutQueue(mockQueue)
+    } catch (error) {
+      console.error('Failed to load cart from backend:', error)
+      // Fallback to mock data
       setCartItems([])
+      setCheckoutQueue([
+        { id: 1, name: 'John Doe', isLoyaltyMember: true, cartTotal: 1029.97, items: 3, waitTime: '2 min' },
+        { id: 2, name: 'Jane Smith', isLoyaltyMember: false, cartTotal: 159.99, items: 2, waitTime: '5 min' },
+        { id: 3, name: 'Bob Wilson', isLoyaltyMember: true, cartTotal: 89.99, items: 1, waitTime: '8 min' },
+        { id: 4, name: 'Alice Brown', isLoyaltyMember: false, cartTotal: 299.99, items: 4, waitTime: '12 min' },
+      ])
+    }
+  }
+
+  const handleAddToCart = async (product) => {
+    try {
+      const response = await fetch('http://localhost:8080/api/cart/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          quantity: 1
+        })
+      })
+      if (response.ok) {
+        loadData()
+      }
+    } catch (error) {
+      console.error('Failed to add to cart:', error)
+      // Fallback to local update
+      setCartItems([...cartItems, { ...product, quantity: 1 }])
+    }
+  }
+
+  const handleUndo = async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/cart/undo', {
+        method: 'POST'
+      })
+      if (response.ok) {
+        loadData()
+      }
+    } catch (error) {
+      console.error('Failed to undo cart action:', error)
+      // Fallback to local update
+      if (cartItems.length > 0) {
+        setCartItems(cartItems.slice(0, -1))
+      }
+    }
+  }
+
+  const handleCheckout = async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/checkout/dequeue', {
+        method: 'POST'
+      })
+      if (response.ok) {
+        const data = await response.json()
+        alert(`Processing checkout for ${data.name}`)
+        loadData()
+      }
+    } catch (error) {
+      console.error('Failed to process checkout:', error)
+      // Fallback to local update
+      if (checkoutQueue.length > 0) {
+        const nextCustomer = checkoutQueue[0]
+        alert(`Processing checkout for ${nextCustomer.name}`)
+        setCheckoutQueue(checkoutQueue.slice(1))
+      }
+    }
+  }
+
+  const clearCart = async () => {
+    try {
+      // Clear endpoint not implemented yet, using local update
+      setCartItems([])
+    } catch (error) {
+      console.error('Failed to clear cart:', error)
     }
   }
 
   const updateQuantity = (id, delta) => {
-    setCartItems(cartItems.map(item => 
+    const updatedItems = cartItems.map(item => 
       item.id === id 
         ? { ...item, quantity: Math.max(1, item.quantity + delta) }
         : item
-    ))
+    )
+    setCartItems(updatedItems)
   }
 
   const removeItem = (id) => {
-    const item = cartItems.find(i => i.id === id)
-    if (item) {
-      setUndoStack([...undoStack, item])
-      setCartItems(cartItems.filter(i => i.id !== id))
+    setCartItems(cartItems.filter(i => i.id !== id))
+  }
+
+  const handleAddCustomer = async (customerData) => {
+    // TODO: Call C++ backend API (Priority Queue)
+    const newCustomer = {
+      id: Date.now(),
+      ...customerData,
+      cartTotal: 0,
+      items: 0,
+      waitTime: '0 min'
     }
+    setCheckoutQueue([...checkoutQueue, newCustomer])
+    setShowAddCustomerModal(false)
   }
 
   const cartTotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
@@ -80,6 +148,13 @@ const CartManagement = () => {
           </div>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => setShowAddCustomerModal(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Users className="w-4 h-4" />
+            Add Customer
+          </button>
           <div className="chip chip-gray">
             <Undo className="w-4 h-4 inline mr-1" />
             Stack (Undo/Redo)
@@ -142,14 +217,6 @@ const CartManagement = () => {
               >
                 <Undo className="w-4 h-4" />
                 Undo
-              </button>
-              <button
-                onClick={handleRedo}
-                disabled={undoStack.length === 0}
-                className="btn-tertiary flex items-center gap-2 disabled:opacity-50 text-sm"
-              >
-                <Redo className="w-4 h-4" />
-                Redo
               </button>
             </div>
           </div>
@@ -407,13 +474,9 @@ const CartManagement = () => {
               <h4 className="font-semibold text-gray-900">Stack (LIFO)</h4>
             </div>
             <p className="text-sm text-gray-600 mb-2">
-              Shopping cart uses a stack structure for undo/redo functionality. 
-              Last added item is removed first during undo.
+              Shopping cart uses a stack structure for undo functionality. 
+              Last added item is removed first during undo. <span className="font-medium text-primary">O(1)</span> push/pop.
             </p>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="font-medium text-primary">O(1)</span>
-              <span className="text-gray-500">push/pop operations</span>
-            </div>
           </div>
           <div className="p-5 bg-white rounded-16 border border-border hover:shadow-1 transition-all">
             <div className="flex items-center gap-3 mb-3">
@@ -422,12 +485,8 @@ const CartManagement = () => {
             </div>
             <p className="text-sm text-gray-600 mb-2">
               Checkout queue prioritizes loyalty members using a priority queue. 
-              Ensures loyal customers are served first.
+              Ensures loyal customers are served first. <span className="font-medium text-primary">O(log n)</span> enqueue/dequeue.
             </p>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="font-medium text-primary">O(log n)</span>
-              <span className="text-gray-500">enqueue/dequeue</span>
-            </div>
           </div>
         </div>
       </div>
@@ -440,7 +499,58 @@ const CartManagement = () => {
           <p className="text-sm">Stock levels are validated before checkout. Low stock items trigger automatic restock alerts to prevent overselling.</p>
         </div>
       </div>
+
+      {/* Add Customer Modal */}
+      {showAddCustomerModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="card p-6 w-full max-w-md animate-fadeIn">
+            <h3 className="text-xl font-semibold mb-4">Add Customer to Queue</h3>
+            <AddCustomerForm onSubmit={handleAddCustomer} onCancel={() => setShowAddCustomerModal(false)} />
+          </div>
+        </div>
+      )}
     </div>
+  )
+}
+
+const AddCustomerForm = ({ onSubmit, onCancel }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    isLoyaltyMember: false
+  })
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onSubmit(formData)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+        <input
+          type="text"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          className="input w-full"
+          required
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="loyalty"
+          checked={formData.isLoyaltyMember}
+          onChange={(e) => setFormData({ ...formData, isLoyaltyMember: e.target.checked })}
+          className="w-4 h-4"
+        />
+        <label htmlFor="loyalty" className="text-sm text-gray-700">Loyalty Member (Priority Queue)</label>
+      </div>
+      <div className="flex gap-2 pt-4">
+        <button type="submit" className="btn-primary flex-1">Add to Queue</button>
+        <button type="button" onClick={onCancel} className="btn-tertiary flex-1">Cancel</button>
+      </div>
+    </form>
   )
 }
 

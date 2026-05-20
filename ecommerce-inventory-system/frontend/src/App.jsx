@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Package, Warehouse, ShoppingCart, Users, BarChart3, TrendingUp, AlertTriangle, Menu, X, Bell, Settings, LogOut } from 'lucide-react'
+import { Package, Warehouse, ShoppingCart, Users, BarChart3, TrendingUp, AlertTriangle, Menu, X, Bell, Settings, LogOut, FileText } from 'lucide-react'
 import ProductCatalog from './components/ProductCatalog'
 import InventoryManagement from './components/InventoryManagement'
 import CartManagement from './components/CartManagement'
 import Dashboard from './components/Dashboard'
+import ReportsAnalytics from './components/ReportsAnalytics'
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -14,49 +15,50 @@ function App() {
     { id: 'products', label: 'Products', icon: Package, description: 'Product Catalog' },
     { id: 'inventory', label: 'Inventory', icon: Warehouse, description: 'Warehouse Management' },
     { id: 'cart', label: 'Cart', icon: ShoppingCart, description: 'Cart & Checkout' },
+    { id: 'reports', label: 'Reports', icon: FileText, description: 'Analytics & Reports' },
   ]
 
   return (
     <div className="min-h-screen bg-surface">
       {/* Header */}
-      <header className="bg-white shadow-2 border-b border-border sticky top-0 z-50">
+      <header className="bg-palladian shadow-2 border-b border-oatmeal sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                className="lg:hidden p-2 hover:bg-gray-100 rounded-8 transition-colors"
+                className="lg:hidden p-2 hover:bg-oatmeal/50 rounded-8 transition-colors"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               >
-                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                {mobileMenuOpen ? <X className="w-6 h-6 text-abyssal" /> : <Menu className="w-6 h-6 text-abyssal" />}
               </button>
               <div>
                 <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-primary rounded-16 flex items-center justify-center">
-                    <Package className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 bg-blueFantastic rounded-16 flex items-center justify-center">
+                    <Package className="w-6 h-6 text-palladian" />
                   </div>
-                  <h1 className="text-xl font-bold text-gray-900 hidden sm:block">E-Commerce Inventory</h1>
+                  <h1 className="text-xl font-bold text-abyssal hidden sm:block">E-Commerce Inventory</h1>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">Demand Forecasting & Supply Chain</p>
+                <p className="text-xs text-gray-600 mt-0.5 hidden sm:block">Demand Forecasting & Supply Chain</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button className="p-2 hover:bg-gray-100 rounded-8 transition-colors relative">
-                <Bell className="w-5 h-5 text-gray-600" />
+              <button className="p-2 hover:bg-oatmeal/50 rounded-8 transition-colors relative">
+                <Bell className="w-5 h-5 text-blueFantastic" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
               </button>
-              <button className="p-2 hover:bg-gray-100 rounded-8 transition-colors">
-                <Settings className="w-5 h-5 text-gray-600" />
+              <button className="p-2 hover:bg-oatmeal/50 rounded-8 transition-colors">
+                <Settings className="w-5 h-5 text-blueFantastic" />
               </button>
-              <div className="hidden md:flex items-center gap-3 pl-3 border-l border-border">
-                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                  <Users className="w-4 h-4 text-primary" />
+              <div className="hidden md:flex items-center gap-3 pl-3 border-l border-oatmeal">
+                <div className="w-8 h-8 bg-blueFantastic/10 rounded-full flex items-center justify-center">
+                  <Users className="w-4 h-4 text-blueFantastic" />
                 </div>
                 <div className="text-left">
-                  <p className="text-sm font-medium text-gray-900">Admin User</p>
-                  <p className="text-xs text-gray-500">System Administrator</p>
+                  <p className="text-sm font-medium text-abyssal">Admin User</p>
+                  <p className="text-xs text-gray-600">System Administrator</p>
                 </div>
               </div>
-              <button className="p-2 hover:bg-gray-100 rounded-8 transition-colors text-error">
+              <button className="p-2 hover:bg-oatmeal/50 rounded-8 transition-colors text-error">
                 <LogOut className="w-5 h-5" />
               </button>
             </div>
@@ -65,7 +67,7 @@ function App() {
       </header>
 
       {/* Navigation Tabs */}
-      <nav className="bg-white border-b border-border sticky top-[73px] z-40">
+      <nav className="bg-palladian border-b border-oatmeal sticky top-[73px] z-40">
         <div className="max-w-7xl mx-auto px-6">
           {/* Desktop Navigation */}
           <div className="hidden lg:flex gap-1">
@@ -77,8 +79,8 @@ function App() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-6 py-3 rounded-8 flex items-center gap-2 transition-all font-medium ${
                     activeTab === tab.id
-                      ? 'bg-primary text-white shadow-1'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      ? 'bg-blueFantastic text-palladian shadow-1'
+                      : 'text-gray-600 hover:bg-oatmeal/50 hover:text-abyssal'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -102,8 +104,8 @@ function App() {
                     }}
                     className={`w-full px-4 py-3 rounded-8 flex items-center gap-3 transition-all ${
                       activeTab === tab.id
-                        ? 'bg-primary text-white font-medium'
-                        : 'text-gray-600 hover:bg-gray-100'
+                        ? 'bg-blueFantastic text-palladian font-medium'
+                        : 'text-gray-600 hover:bg-oatmeal/50'
                     }`}
                   >
                     <Icon className="w-5 h-5" />
@@ -126,6 +128,7 @@ function App() {
           {activeTab === 'products' && <ProductCatalog />}
           {activeTab === 'inventory' && <InventoryManagement />}
           {activeTab === 'cart' && <CartManagement />}
+          {activeTab === 'reports' && <ReportsAnalytics />}
         </div>
       </main>
     </div>
