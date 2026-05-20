@@ -1,25 +1,78 @@
-import { Package, TrendingUp, AlertTriangle, Warehouse, ShoppingCart, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Package, TrendingUp, AlertTriangle, Warehouse, ShoppingCart, ArrowUpRight, ArrowDownRight, Activity, Sparkles } from 'lucide-react'
 
 const Dashboard = () => {
-  const stats = [
-    { label: 'Total Products', value: '156', change: '+12%', trend: 'up', icon: Package, color: 'bg-primary/10 text-primary' },
-    { label: 'Total Stock', value: '12,450', change: '+8%', trend: 'up', icon: Warehouse, color: 'bg-info/10 text-info' },
-    { label: 'Low Stock Alerts', value: '8', change: '-3', trend: 'down', icon: AlertTriangle, color: 'bg-warning/10 text-warning' },
-    { label: 'Active Carts', value: '23', change: '+15%', trend: 'up', icon: ShoppingCart, color: 'bg-success/10 text-success' },
-  ]
+  const [stats, setStats] = useState([])
+  const [forecasts, setForecasts] = useState([])
+  const [restockOrders, setRestockOrders] = useState([])
+  const [alerts, setAlerts] = useState([])
 
-  const forecasts = [
-    { product: 'Laptop', category: 'Electronics', forecast: 95, current: 50, status: 'Low Stock', progress: 53 },
-    { product: 'Mouse', category: 'Electronics', forecast: 180, current: 200, status: 'Good', progress: 111 },
-    { product: 'T-Shirt', category: 'Clothing', forecast: 320, current: 300, status: 'Low Stock', progress: 94 },
-    { product: 'Sneakers', category: 'Footwear', forecast: 165, current: 150, status: 'Low Stock', progress: 91 },
-  ]
+  useEffect(() => {
+    loadData()
+  }, [])
 
-  const restockOrders = [
-    { product: 'Laptop', quantity: 50, priority: 'High', urgency: 'Urgent' },
-    { product: 'T-Shirt', quantity: 100, priority: 'Medium', urgency: 'Normal' },
-    { product: 'Sneakers', quantity: 30, priority: 'High', urgency: 'Urgent' },
-  ]
+  const loadData = async () => {
+    try {
+      // Load products for stats
+      const productsResponse = await fetch('http://localhost:8080/api/products')
+      const products = await productsResponse.json()
+      
+      const statsData = [
+        { label: 'Total Products', value: products.length, change: '+12%', trend: 'up', icon: Package, color: 'bg-primary/10 text-primary' },
+        { label: 'Total Stock', value: products.reduce((sum, p) => sum + p.stock, 0).toLocaleString(), change: '+8%', trend: 'up', icon: Warehouse, color: 'bg-info/10 text-info' },
+        { label: 'Low Stock Alerts', value: products.filter(p => p.stock < 50).length, change: '-3', trend: 'down', icon: AlertTriangle, color: 'bg-warning/10 text-warning' },
+        { label: 'Active Carts', value: 0, change: '+15%', trend: 'up', icon: ShoppingCart, color: 'bg-success/10 text-success' },
+      ]
+      setStats(statsData)
+
+      // Load restock orders (Greedy algorithm)
+      const restockResponse = await fetch('http://localhost:8080/api/restock?budget=5000&capacity=1000')
+      const restockData = await restockResponse.json()
+      setRestockOrders(restockData.slice(0, 3))
+
+      // Load alerts
+      const alertsResponse = await fetch('http://localhost:8080/api/alerts')
+      const alertsData = await alertsResponse.json()
+      setAlerts(alertsData.slice(0, 3))
+
+      // Mock forecast data (endpoint exists but need product-specific calls)
+      const forecastData = products.slice(0, 4).map(p => ({
+        product: p.name,
+        category: p.category,
+        forecast: 100,
+        current: p.stock,
+        status: p.stock < 50 ? 'Low Stock' : 'Good',
+        progress: Math.round((p.stock / 100) * 100)
+      }))
+      setForecasts(forecastData)
+    } catch (error) {
+      console.error('Failed to load dashboard data from backend:', error)
+      // Fallback to mock data
+      const statsData = [
+        { label: 'Total Products', value: 10, change: '+12%', trend: 'up', icon: Package, color: 'bg-primary/10 text-primary' },
+        { label: 'Total Stock', value: '1,245', change: '+8%', trend: 'up', icon: Warehouse, color: 'bg-info/10 text-info' },
+        { label: 'Low Stock Alerts', value: 3, change: '-3', trend: 'down', icon: AlertTriangle, color: 'bg-warning/10 text-warning' },
+        { label: 'Active Carts', value: 0, change: '+15%', trend: 'up', icon: ShoppingCart, color: 'bg-success/10 text-success' },
+      ]
+      setStats(statsData)
+      setForecasts([
+        { product: 'Laptop', category: 'Electronics', forecast: 95, current: 50, status: 'Low Stock', progress: 53 },
+        { product: 'Mouse', category: 'Electronics', forecast: 180, current: 200, status: 'Good', progress: 111 },
+        { product: 'T-Shirt', category: 'Clothing', forecast: 320, current: 300, status: 'Low Stock', progress: 94 },
+        { product: 'Sneakers', category: 'Footwear', forecast: 165, current: 150, status: 'Low Stock', progress: 91 },
+      ])
+      setRestockOrders([
+        { productId: 1, productName: 'Laptop', unitsToOrder: 50, totalCost: 30000, priority: 1.2 },
+        { productId: 6, productName: 'T-Shirt', unitsToOrder: 100, totalCost: 1200, priority: 0.95 },
+        { productId: 9, productName: 'Sneakers', unitsToOrder: 30, totalCost: 2100, priority: 0.85 },
+      ])
+      setAlerts([
+        { id: 1, name: 'Laptop', stock: 50 },
+        { id: 4, name: 'Monitor', stock: 80 },
+        { id: 10, name: 'Boots', stock: 90 },
+      ])
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -103,29 +156,96 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="space-y-4">
-            {restockOrders.map((order) => (
-              <div key={order.product} className="p-4 bg-gray-50 rounded-8 hover:bg-gray-100 transition-colors">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="font-semibold text-gray-900">{order.product}</p>
-                    <p className="text-sm text-gray-500">Quantity: {order.quantity} units</p>
+            {restockOrders.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">No restock orders needed</div>
+            ) : (
+              restockOrders.map((order) => (
+                <div key={order.productId} className="p-4 bg-gray-50 rounded-8 hover:bg-gray-100 transition-colors">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-semibold text-gray-900">{order.productName}</p>
+                      <p className="text-sm text-gray-500">Quantity: {order.unitsToOrder} units</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="chip chip-primary text-xs">
+                        Priority: {order.priority.toFixed(2)}
+                      </span>
+                      <span className="text-xs text-gray-500">${order.totalCost.toFixed(2)}</span>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={`chip ${order.priority === 'High' ? 'chip-primary' : 'chip-gray'}`}>
-                      {order.priority} Priority
-                    </span>
-                    <span className="text-xs text-gray-500">{order.urgency}</span>
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Activity className="w-4 h-4" />
+                    <span>Turnover: {order.turnoverRate} | Storage: ${order.storageCost}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Activity className="w-4 h-4" />
-                  <span>Auto-generated based on turnover rate × storage cost</span>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+<<<<<<< HEAD
+=======
+
+      {/* System Info */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="p-2 bg-primary/10 rounded-8">
+            <Activity className="w-5 h-5 text-primary" />
+          </div>
+          <h2 className="text-xl font-semibold">Data Structures & Algorithms</h2>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {dataStructures.map((ds) => (
+            <div key={ds.name} className="p-5 bg-gradient-to-br from-gray-50 to-white rounded-16 border border-border hover:shadow-2 transition-all duration-300 group">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl group-hover:scale-125 transition-transform">{ds.icon}</span>
+                <p className="font-semibold text-gray-900">{ds.name}</p>
+              </div>
+              <p className="text-sm text-gray-500">{ds.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="card">
+        <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button className="p-4 bg-primary text-white rounded-16 hover:bg-primary-hover transition-colors flex items-center gap-3">
+            <Package className="w-5 h-5" />
+            <span className="font-medium">Add New Product</span>
+          </button>
+          <button className="p-4 bg-blueFantastic text-palladian rounded-16 hover:bg-abyssal transition-colors flex items-center gap-3">
+            <Warehouse className="w-5 h-5" />
+            <span className="font-medium">Manage Inventory</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Smart Alerts */}
+      {alerts.length > 0 && (
+        <div className="card bg-gradient-to-r from-warning/5 to-orange-50 border-warning/20">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5 text-warning" />
+            <span className="font-semibold">Smart Alerts</span>
+          </div>
+          <div className="space-y-2">
+            {alerts.map(alert => (
+              <div key={alert.id} className="flex items-center justify-between p-3 bg-white rounded-8 border border-border">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-gray-400" />
+                  <span className="font-medium">{alert.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">{alert.stock} units</span>
+                  <span className="chip chip-primary text-xs">Low Stock</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      )}
+>>>>>>> e2eaec53ff434469d2a91de2f286c646dfc4a507
     </div>
   )
 }

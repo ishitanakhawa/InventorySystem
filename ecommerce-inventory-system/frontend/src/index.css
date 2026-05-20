@@ -36,6 +36,10 @@
   .btn-tertiary {
     @apply bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 px-4 py-2 rounded-8 transition-all duration-200 hover:shadow-1 active:scale-95;
   }
+
+  .btn-burningFlame {
+    @apply bg-burningFlame hover:bg-truffleTrouble active:text-palladian text-white px-4 py-2 rounded-8 transition-all duration-200 hover:shadow-1 active:scale-95;
+  }
   
   .card {
     @apply bg-white rounded-16 shadow-2 p-6 transition-all duration-300;
@@ -55,6 +59,10 @@
   
   .chip-gray {
     @apply chip bg-gray-200 text-gray-700 hover:bg-gray-300;
+  }
+
+  .chip-burningFlame {
+    @apply chip bg-burningFlame text-white hover:bg-truffleTrouble;
   }
   
   .alert {

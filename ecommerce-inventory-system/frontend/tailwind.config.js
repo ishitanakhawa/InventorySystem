@@ -7,35 +7,54 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Primary Action - Dark teal/blue
+        // New Color Scheme
+        palladian: '#EEE9DF',
+        oatmeal: '#C9C1B1',
+        blueFantastic: '#2C3B4D',
+        burningFlame: '#FFB162',
+        truffleTrouble: '#A35139',
+        abyssal: '#1B2632',
+        // Primary Action - Using Blue Fantastic
         primary: {
-          DEFAULT: '#0D9488',
-          hover: '#0F766E',
-          active: '#115E59',
+          DEFAULT: '#2C3B4D',
+          hover: '#1B2632',
+          active: '#0F1A22',
         },
-        // Surface - Light off-white/beige
-        surface: '#FAFAF9',
-        // Border - Light grey
-        border: '#E5E7EB',
-        // Focus Ring - Slightly darker teal/blue
-        focus: '#0F766E',
+        // Secondary Action - Using Burning Flame
+        secondary: {
+          DEFAULT: '#FFB162',
+          hover: '#E5A055',
+          active: '#CC8F44',
+        },
+        // Accent - Using Truffle Trouble
+        accent: {
+          DEFAULT: '#A35139',
+          hover: '#8B4530',
+          active: '#733927',
+        },
+        // Surface - Using Palladian
+        surface: '#EEE9DF',
+        // Border - Using Oatmeal
+        border: '#C9C1B1',
+        // Focus Ring - Using Abyssal
+        focus: '#1B2632',
         // Grays
         gray: {
-          50: '#F9FAFB',
-          100: '#F3F4F6',
-          200: '#E5E7EB',
-          300: '#D1D5DB',
-          400: '#9CA3AF',
-          500: '#6B7280',
-          600: '#4B5563',
-          700: '#374151',
-          800: '#1F2937',
-          900: '#111827',
+          50: '#EEE9DF',
+          100: '#C9C1B1',
+          200: '#A8A092',
+          300: '#878073',
+          400: '#665F54',
+          500: '#554E45',
+          600: '#443E36',
+          700: '#332E28',
+          800: '#2C3B4D',
+          900: '#1B2632',
         },
         // Alert colors
         success: '#10B981',
         info: '#3B82F6',
-        warning: '#F59E0B',
+        warning: '#FFB162',
         error: '#EF4444',
       },
       fontFamily: {
