@@ -10,6 +10,11 @@ import {
   Plus,
   Edit,
   Trash2,
+  Sparkles,
+  RefreshCw,
+  Grid3x3,
+  List,
+  ArrowUpDown,
 } from "lucide-react";
 
 const ProductCatalog = () => {
@@ -21,15 +26,31 @@ const ProductCatalog = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [searchType, setSearchType] = useState("name"); // 'name', 'id', 'price'
+  const [searchType, setSearchType] = useState("name");
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState("grid");
 
   const categories = ["All", "Electronics", "Clothing", "Footwear"];
+
+  const productImages = {
+    "Laptop": "💻",
+    "Mouse": "🖱️",
+    "Keyboard": "⌨️",
+    "Monitor": "🖥️",
+    "Headphones": "🎧",
+    "T-Shirt": "👕",
+    "Jeans": "👖",
+    "Jacket": "🧥",
+    "Sneakers": "👟",
+    "Boots": "👢",
+  };
 
   useEffect(() => {
     loadProducts();
   }, []);
 
   const loadProducts = async () => {
+    setLoading(true);
     try {
       const response = await fetch("http://localhost:8080/api/products");
       const data = await response.json();
@@ -132,6 +153,8 @@ const ProductCatalog = () => {
       ];
       setProducts(mockProducts);
       applyFilters(mockProducts);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -260,6 +283,36 @@ const ProductCatalog = () => {
     priceFilter.max ||
     selectedCategory !== "All";
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gray-200 rounded-16 animate-pulse"></div>
+            <div>
+              <div className="h-8 bg-gray-200 rounded-8 animate-pulse w-48 mb-2"></div>
+              <div className="h-4 bg-gray-200 rounded-8 animate-pulse w-64"></div>
+            </div>
+          </div>
+        </div>
+        <div className="card space-y-4 animate-pulse">
+          <div className="h-12 bg-gray-100 rounded-8"></div>
+          <div className="h-12 bg-gray-100 rounded-8"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="card animate-pulse">
+              <div className="h-40 bg-gray-100 rounded-12 mb-4"></div>
+              <div className="h-6 bg-gray-100 rounded-8 w-24 mb-2"></div>
+              <div className="h-4 bg-gray-100 rounded-8 w-16 mb-4"></div>
+              <div className="h-8 bg-gray-100 rounded-8 w-20"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -277,20 +330,43 @@ const ProductCatalog = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="hidden md:flex items-center gap-2">
+          <button
+            onClick={loadProducts}
+            className="btn-tertiary flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+          <div className="flex bg-gray-100 rounded-8 p-1">
             <button
-              onClick={() => setShowAddModal(true)}
-              className="btn-primary flex items-center gap-2"
+              onClick={() => setViewMode("grid")}
+              className={`p-2 rounded-6 transition-colors ${
+                viewMode === "grid" ? "bg-white shadow-1" : "text-gray-500"
+              }`}
             >
-              <Plus className="w-4 h-4" />
-              Add Product
+              <Grid3x3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-2 rounded-6 transition-colors ${
+                viewMode === "list" ? "bg-white shadow-1" : "text-gray-500"
+              }`}
+            >
+              <List className="w-4 h-4" />
             </button>
           </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Product
+          </button>
         </div>
       </div>
 
       {/* Search and Filters */}
-      <div className="card space-y-4">
+      <div className="card space-y-4 animate-slideUp">
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Search Type Selector */}
           <div className="flex gap-2">
@@ -325,7 +401,7 @@ const ProductCatalog = () => {
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -340,7 +416,7 @@ const ProductCatalog = () => {
                 onClick={() => setSelectedCategory(category)}
                 className={`px-4 py-2 rounded-8 text-sm font-medium transition-all ${
                   selectedCategory === category
-                    ? "bg-primary text-white"
+                    ? "bg-primary text-white shadow-1"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
@@ -416,8 +492,10 @@ const ProductCatalog = () => {
 
       {/* Products Grid */}
       {sortedProducts.length === 0 ? (
-        <div className="card text-center py-12">
-          <Package className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+        <div className="card text-center py-16 animate-fadeIn">
+          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Package className="w-10 h-10 text-gray-300" />
+          </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             No products found
           </h3>
@@ -429,22 +507,31 @@ const ProductCatalog = () => {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {sortedProducts.map((product) => (
+        <div className={`grid gap-6 animate-slideUp ${
+          viewMode === "grid"
+            ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            : "grid-cols-1"
+        }`}>
+          {sortedProducts.map((product, index) => (
             <div
               key={product.id}
-              className="card hover:shadow-3 transition-all duration-300 group"
+              className={`card hover:shadow-3 transition-all duration-300 group ${
+                viewMode === "list" ? "flex items-center gap-6" : ""
+              }`}
+              style={{ animationDelay: `${index * 50}ms` }}
             >
-              <div className="relative mb-4">
-                <div className="w-full h-40 bg-gradient-to-br from-gray-50 to-gray-100 rounded-12 flex items-center justify-center text-5xl group-hover:scale-105 transition-transform">
-                  {product.image}
+              <div className={`relative ${viewMode === "list" ? "w-24 h-24 flex-shrink-0" : "mb-4"}`}>
+                <div className={`w-full h-full bg-gradient-to-br from-gray-50 to-gray-100 rounded-12 flex items-center justify-center ${
+                  viewMode === "list" ? "text-4xl" : "h-40 text-5xl"
+                } group-hover:scale-105 transition-transform`}>
+                  {productImages[product.name] || "📦"}
                 </div>
-                <span className="absolute top-2 right-2 chip chip-gray text-xs">
+                <span className={`absolute top-2 right-2 chip chip-gray text-xs`}>
                   {product.category}
                 </span>
               </div>
 
-              <div className="space-y-3">
+              <div className={`space-y-3 ${viewMode === "list" ? "flex-1" : ""}`}>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary transition-colors">
                     {product.name}

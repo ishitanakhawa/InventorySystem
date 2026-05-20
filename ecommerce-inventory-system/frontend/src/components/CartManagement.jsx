@@ -24,12 +24,14 @@ const CartManagement = () => {
   const [cartItems, setCartItems] = useState([]);
   const [checkoutQueue, setCheckoutQueue] = useState([]);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
     try {
       const response = await fetch("http://localhost:8080/api/cart");
       const data = await response.json();
@@ -109,6 +111,8 @@ const CartManagement = () => {
           waitTime: "12 min",
         },
       ]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -216,6 +220,48 @@ const CartManagement = () => {
   const estimatedDelivery =
     cartTotal > 100 ? "Free (2-3 days)" : "₹5.99 (3-5 days)";
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gray-200 rounded-16 animate-pulse"></div>
+            <div>
+              <div className="h-8 bg-gray-200 rounded-8 animate-pulse w-48 mb-2"></div>
+              <div className="h-4 bg-gray-200 rounded-8 animate-pulse w-64"></div>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="card animate-pulse">
+              <div className="h-16 bg-gray-100 rounded-8 mb-2"></div>
+              <div className="h-8 bg-gray-100 rounded-8 w-12"></div>
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="card animate-pulse">
+            <div className="h-12 bg-gray-100 rounded-8 mb-4"></div>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-20 bg-gray-100 rounded-8"></div>
+              ))}
+            </div>
+          </div>
+          <div className="card animate-pulse">
+            <div className="h-12 bg-gray-100 rounded-8 mb-4"></div>
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-16 bg-gray-100 rounded-8"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -231,10 +277,19 @@ const CartManagement = () => {
             </p>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadData}
+            className="btn-tertiary flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-slideUp">
         <div className="card p-4 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
           <div className="flex items-center gap-2 mb-1">
             <ShoppingCart className="w-4 h-4 text-primary" />
@@ -271,7 +326,7 @@ const CartManagement = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Shopping Cart (Stack) */}
-        <div className="card">
+        <div className="card animate-slideUp" style={{ animationDelay: "100ms" }}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-primary/10 rounded-8">
@@ -312,6 +367,7 @@ const CartManagement = () => {
                   <div
                     key={item.id}
                     className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-white rounded-12 border border-border hover:shadow-1 transition-all animate-slideUp"
+                    style={{ animationDelay: `${150 + index * 50}ms` }}
                   >
                     <div className="flex flex-col items-center">
                       <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold shadow-1">
@@ -426,7 +482,7 @@ const CartManagement = () => {
         </div>
 
         {/* Checkout Queue (Priority Queue) */}
-        <div className="card">
+        <div className="card animate-slideUp" style={{ animationDelay: "200ms" }}>
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-primary/10 rounded-8">
@@ -467,7 +523,7 @@ const CartManagement = () => {
                       ? "border-primary bg-gradient-to-r from-primary/5 to-primary/10 shadow-2"
                       : "border-border bg-gray-50 hover:bg-gray-100"
                   }`}
-                  style={{ animationDelay: `${index * 50}ms` }}
+                  style={{ animationDelay: `${250 + index * 50}ms` }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -574,8 +630,48 @@ const CartManagement = () => {
         </div>
       </div>
 
+      {/* Data Structure Info */}
+      <div className="card bg-gradient-to-r from-primary/5 to-info/5 border-primary/20 animate-slideUp" style={{ animationDelay: "300ms" }}>
+        <div className="flex items-center gap-2 mb-6">
+          <div className="p-2 bg-primary/10 rounded-8">
+            <Sparkles className="w-5 h-5 text-primary" />
+          </div>
+          <h3 className="font-semibold">Data Structures Used</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-5 bg-white rounded-16 border border-border hover:shadow-1 transition-all">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">📚</span>
+              <h4 className="font-semibold text-gray-900">Stack (LIFO)</h4>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">
+              Shopping cart uses a stack structure for undo/redo functionality. 
+              Last added item is removed first during undo.
+            </p>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-medium text-primary">O(1)</span>
+              <span className="text-gray-500">push/pop operations</span>
+            </div>
+          </div>
+          <div className="p-5 bg-white rounded-16 border border-border hover:shadow-1 transition-all">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">🚦</span>
+              <h4 className="font-semibold text-gray-900">Priority Queue</h4>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">
+              Checkout queue prioritizes loyalty members using a priority queue. 
+              Ensures loyal customers are served first.
+            </p>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-medium text-primary">O(log n)</span>
+              <span className="text-gray-500">enqueue/dequeue</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Stock Validation Alert */}
-      <div className="alert alert-warning">
+      <div className="alert alert-warning animate-slideUp" style={{ animationDelay: "400ms" }}>
         <AlertTriangle className="w-5 h-5" />
         <div className="flex-1">
           <p className="font-medium">Stock Validation</p>
