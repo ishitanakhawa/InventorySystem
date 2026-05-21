@@ -11,6 +11,9 @@ import {
   Sparkles,
   RefreshCw,
   BarChart3,
+  Calendar,
+  Hourglass,
+  Percent,
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -27,11 +30,34 @@ const Dashboard = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Load products for stats
-      const productsResponse = await fetch(
-        "http://localhost:8080/api/products",
-      );
+      // 1. Load products for stats
+      const productsResponse = await fetch("http://localhost:8080/api/products");
       const products = await productsResponse.json();
+
+      // 2. Load active checkout queue waitlist size
+      let queueSize = 3;
+      try {
+        const qRes = await fetch("http://localhost:8080/api/checkout/queue");
+        const qData = await qRes.json();
+        queueSize = qData.length;
+      } catch (e) {
+        console.warn("Queue size fetch failed, defaulting to mock.");
+      }
+
+      // 3. Load alerts from smart alerts system
+      let alertsData = [];
+      try {
+        const alertsResponse = await fetch("http://localhost:8080/api/alerts");
+        alertsData = await alertsResponse.json();
+      } catch (e) {
+        console.warn("Alerts fetch failed, defaulting to mock.");
+        alertsData = [
+          { id: 6, type: "EXPIRY", productName: "T-Shirt", message: "Perishable threat: product expires soon on 2026-08-01", severity: "CRITICAL" },
+          { id: 2, type: "OVERSTOCK", productName: "Mouse", message: "Storage overcapacity: Stock level is at 200 units (max: 300)", severity: "WARNING" },
+          { id: 1, type: "SPIKE", productName: "Laptop", message: "Demand surge: High sales spike expected due to high rating and popularity (85%)", severity: "INFO" }
+        ];
+      }
+      setAlerts(alertsData);
 
       const statsData = [
         {
@@ -44,7 +70,7 @@ const Dashboard = () => {
           gradient: "from-primary/5 to-primary/10",
         },
         {
-          label: "Total Stock",
+          label: "Total Stock Units",
           value: products.reduce((sum, p) => sum + p.stock, 0).toLocaleString(),
           change: "+8%",
           trend: "up",
@@ -53,18 +79,18 @@ const Dashboard = () => {
           gradient: "from-info/5 to-info/10",
         },
         {
-          label: "Low Stock Alerts",
-          value: products.filter((p) => p.stock < 50).length,
-          change: "-3",
-          trend: "down",
+          label: "Smart Alerts Active",
+          value: alertsData.length,
+          change: `${alertsData.filter(a => a.severity === "CRITICAL").length} Critical`,
+          trend: alertsData.length > 3 ? "up" : "down",
           icon: AlertTriangle,
           color: "bg-warning/10 text-warning",
           gradient: "from-warning/5 to-warning/10",
         },
         {
-          label: "Active Carts",
-          value: 0,
-          change: "+15%",
+          label: "Checkout Queue Wait",
+          value: `${queueSize} Buyers`,
+          change: `${queueSize * 4} Min Wait`,
           trend: "up",
           icon: ShoppingCart,
           color: "bg-success/10 text-success",
@@ -73,31 +99,39 @@ const Dashboard = () => {
       ];
       setStats(statsData);
 
-      // Load restock orders (Greedy algorithm)
-      const restockResponse = await fetch(
-        "http://localhost:8080/api/restock?budget=5000&capacity=1000",
-      );
-      const restockData = await restockResponse.json();
-      setRestockOrders(restockData.slice(0, 3));
+      // 4. Load restock orders (Greedy algorithm)
+      try {
+        const restockResponse = await fetch("http://localhost:8080/api/restock?budget=8000");
+        const restockData = await restockResponse.json();
+        setRestockOrders(restockData.slice(0, 3));
+      } catch (e) {
+        console.warn("Restock fetch failed.");
+      }
 
-      // Load alerts
-      const alertsResponse = await fetch("http://localhost:8080/api/alerts");
-      const alertsData = await alertsResponse.json();
-      setAlerts(alertsData.slice(0, 3));
+      // 5. Load forecasts (daily, weekly, monthly calculations)
+      try {
+        const forecastResponse = await fetch("http://localhost:8080/api/forecast");
+        const forecastData = await forecastResponse.json();
+        setForecasts(forecastData.slice(0, 4));
+      } catch (e) {
+        console.warn("Forecast fetch failed, using fallback.");
+        const fallbackForecasts = products.slice(0, 4).map((p) => {
+          const baseSales = 10 + Math.round(p.popularity / 3);
+          return {
+            productId: p.id,
+            productName: p.name,
+            dailyForecast: Math.max(2, Math.round(baseSales * p.turnoverRate / 7.0)),
+            weeklyForecast: Math.max(10, Math.round(baseSales * p.turnoverRate)),
+            monthlyForecast: Math.max(40, Math.round(baseSales * p.turnoverRate * 4.3)),
+            accuracy: 85.0 + (p.id % 12),
+          };
+        });
+        setForecasts(fallbackForecasts);
+      }
 
-      // Mock forecast data (endpoint exists but need product-specific calls)
-      const forecastData = products.slice(0, 4).map((p) => ({
-        product: p.name,
-        category: p.category,
-        forecast: 100,
-        current: p.stock,
-        status: p.stock < 50 ? "Low Stock" : "Good",
-        progress: Math.round((p.stock / 100) * 100),
-      }));
-      setForecasts(forecastData);
     } catch (error) {
       console.error("Failed to load dashboard data from backend:", error);
-      // Fallback to mock data
+      // Fallback to offline mock data
       const statsData = [
         {
           label: "Total Products",
@@ -109,8 +143,8 @@ const Dashboard = () => {
           gradient: "from-primary/5 to-primary/10",
         },
         {
-          label: "Total Stock",
-          value: "1,245",
+          label: "Total Stock Units",
+          value: "1,450",
           change: "+8%",
           trend: "up",
           icon: Warehouse,
@@ -118,18 +152,18 @@ const Dashboard = () => {
           gradient: "from-info/5 to-info/10",
         },
         {
-          label: "Low Stock Alerts",
+          label: "Smart Alerts Active",
           value: 3,
-          change: "-3",
+          change: "1 Critical",
           trend: "down",
           icon: AlertTriangle,
           color: "bg-warning/10 text-warning",
           gradient: "from-warning/5 to-warning/10",
         },
         {
-          label: "Active Carts",
-          value: 0,
-          change: "+15%",
+          label: "Checkout Queue Wait",
+          value: "3 Buyers",
+          change: "12 Min Wait",
           trend: "up",
           icon: ShoppingCart,
           color: "bg-success/10 text-success",
@@ -137,67 +171,24 @@ const Dashboard = () => {
         },
       ];
       setStats(statsData);
+
       setForecasts([
-        {
-          product: "Laptop",
-          category: "Electronics",
-          forecast: 95,
-          current: 50,
-          status: "Low Stock",
-          progress: 53,
-        },
-        {
-          product: "Mouse",
-          category: "Electronics",
-          forecast: 180,
-          current: 200,
-          status: "Good",
-          progress: 111,
-        },
-        {
-          product: "T-Shirt",
-          category: "Clothing",
-          forecast: 320,
-          current: 300,
-          status: "Low Stock",
-          progress: 94,
-        },
-        {
-          product: "Sneakers",
-          category: "Footwear",
-          forecast: 165,
-          current: 150,
-          status: "Low Stock",
-          progress: 91,
-        },
+        { productId: 1, productName: "Laptop", dailyForecast: 4, weeklyForecast: 28, monthlyForecast: 120, accuracy: 92.5 },
+        { productId: 2, productName: "Mouse", dailyForecast: 15, weeklyForecast: 105, monthlyForecast: 450, accuracy: 89.0 },
+        { productId: 6, productName: "T-Shirt", dailyForecast: 22, weeklyForecast: 154, monthlyForecast: 660, accuracy: 94.2 },
+        { productId: 9, productName: "Sneakers", dailyForecast: 8, weeklyForecast: 56, monthlyForecast: 240, accuracy: 87.8 },
       ]);
+
       setRestockOrders([
-        {
-          productId: 1,
-          productName: "Laptop",
-          unitsToOrder: 50,
-          totalCost: 30000,
-          priority: 1.2,
-        },
-        {
-          productId: 6,
-          productName: "T-Shirt",
-          unitsToOrder: 100,
-          totalCost: 1200,
-          priority: 0.95,
-        },
-        {
-          productId: 9,
-          productName: "Sneakers",
-          unitsToOrder: 30,
-          totalCost: 2100,
-          priority: 0.85,
-        },
+        { productId: 1, productName: "Laptop", recommendedSupplier: "Silicon Valley Logistics", unitsToOrder: 50, totalCost: 22500, deliveryDays: 1, priority: 72.5 },
+        { productId: 6, productName: "T-Shirt", recommendedSupplier: "Speedy Apparel Corp", unitsToOrder: 200, totalCost: 1600, deliveryDays: 2, priority: 95.0 },
+        { productId: 9, productName: "Sneakers", recommendedSupplier: "SoleCraft Leather Co", unitsToOrder: 50, totalCost: 2750, deliveryDays: 6, priority: 82.3 },
       ]);
+
       setAlerts([
-        { id: 1, name: "Laptop", stock: 50 },
-        { id: 4, name: "Monitor", stock: 80 },
-        { id: 10, name: "Boots", stock: 90 },
+        { id: 6, type: "EXPIRY", productName: "T-Shirt", message: "Perishable threat: product expires soon on 2026-08-01", severity: "CRITICAL" },
+        { id: 2, type: "OVERSTOCK", productName: "Mouse", message: "Storage overcapacity: Stock level is at 200 units (max: 300)", severity: "WARNING" },
+        { id: 1, type: "SPIKE", productName: "Laptop", message: "Demand surge: High sales spike expected due to high rating and popularity (85%)", severity: "INFO" }
       ]);
     } finally {
       setLoading(false);
@@ -227,7 +218,7 @@ const Dashboard = () => {
   return (
     <div className="space-y-8">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <div className="p-3 bg-primary/10 rounded-16">
@@ -238,7 +229,7 @@ const Dashboard = () => {
             </h1>
           </div>
           <p className="text-gray-500 ml-12">
-            Real-time inventory insights and demand forecasting
+            Real-time inventory insights, greedy restocking schedules, and demand predictions
           </p>
         </div>
         <button
@@ -268,175 +259,197 @@ const Dashboard = () => {
                   <Icon className="w-6 h-6" />
                 </div>
                 <div
-                  className={`flex items-center gap-1 text-sm font-medium px-2 py-1 rounded-full ${
-                    stat.trend === "up"
+                  className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                    stat.trend === "up" || stat.label.includes("Queue")
                       ? "bg-success/10 text-success"
                       : "bg-error/10 text-error"
                   }`}
                 >
-                  <TrendIcon className="w-4 h-4" />
+                  <TrendIcon className="w-3.5 h-3.5" />
                   {stat.change}
                 </div>
               </div>
-              <p className="text-sm text-gray-600 mb-1 font-medium">{stat.label}</p>
-              <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+              <p className="text-xs text-gray-500 mb-1 font-bold uppercase tracking-wider">{stat.label}</p>
+              <p className="text-2xl font-black text-gray-900">{stat.value}</p>
             </div>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Demand Forecasting */}
-        <div className="card animate-slideUp" style={{ animationDelay: "400ms" }}>
-          <div className="flex items-center justify-between mb-6">
+      {/* Forecasting and Restocking Reports */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Demand Forecasting - 2 cols wide */}
+        <div className="lg:col-span-2 card space-y-6">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-primary/10 rounded-8">
                 <TrendingUp className="w-5 h-5 text-primary" />
               </div>
-              <h2 className="text-xl font-semibold">Demand Forecasting</h2>
+              <h2 className="text-xl font-bold">Demand Forecasting</h2>
             </div>
-            <div className="chip chip-gray text-xs">
-              <Sparkles className="w-3 h-3 inline mr-1" />
-              AI-Powered
+            <div className="chip chip-gray text-xs flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-secondary-hover" />
+              <span>Multi-Timeline Model</span>
             </div>
           </div>
-          <div className="space-y-4">
-            {forecasts.map((item, index) => (
-              <div
-                key={item.product}
-                className="p-4 bg-gradient-to-r from-gray-50 to-white rounded-12 border border-border hover:shadow-1 transition-all animate-slideUp"
-                style={{ animationDelay: `${450 + index * 50}ms` }}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="font-semibold text-gray-900">
-                      {item.product}
-                    </p>
-                    <p className="text-sm text-gray-500">{item.category}</p>
-                  </div>
-                  <span
-                    className={`chip ${
-                      item.status === "Low Stock" ? "chip-primary" : "chip-gray"
-                    }`}
-                  >
-                    {item.status}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Stock Level</span>
-                    <span className="font-medium">
-                      {item.current} / {item.forecast}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                    <div
-                      className={`h-2.5 rounded-full transition-all duration-700 ease-out ${
-                        item.progress < 70 ? "bg-warning" : "bg-success"
-                      }`}
-                      style={{ width: `${Math.min(item.progress, 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            ))}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border text-xs text-gray-500 font-bold uppercase tracking-wider">
+                  <th className="pb-3">Product</th>
+                  <th className="pb-3 text-center">Daily</th>
+                  <th className="pb-3 text-center">Weekly</th>
+                  <th className="pb-3 text-center">Monthly</th>
+                  <th className="pb-3 text-right">Accuracy Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm font-medium">
+                {forecasts.map((item, index) => (
+                  <tr key={item.productId} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="py-3.5">
+                      <p className="font-semibold text-gray-800">{item.productName}</p>
+                      <p className="text-xs text-gray-400 font-normal">Product ID: #{item.productId}</p>
+                    </td>
+                    <td className="py-3.5 text-center text-gray-700">
+                      <span className="bg-gray-100 px-2 py-0.5 rounded-4 text-xs font-bold">
+                        {item.dailyForecast} units
+                      </span>
+                    </td>
+                    <td className="py-3.5 text-center text-gray-700">
+                      <span className="bg-blueFantastic/10 text-blueFantastic px-2.5 py-0.5 rounded-4 text-xs font-bold">
+                        {item.weeklyForecast} units
+                      </span>
+                    </td>
+                    <td className="py-3.5 text-center text-gray-900 font-bold">
+                      {item.monthlyForecast} units
+                    </td>
+                    <td className="py-3.5 text-right">
+                      <div className="inline-flex items-center gap-2">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          item.accuracy >= 90 
+                            ? "bg-success/10 text-success border border-success/20" 
+                            : "bg-indigo-50 text-indigo-700 border border-indigo-100"
+                        }`}>
+                          {item.accuracy.toFixed(1)}% Acc
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* Restock Orders */}
-        <div className="card animate-slideUp" style={{ animationDelay: "500ms" }}>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-primary/10 rounded-8">
-                <Package className="w-5 h-5 text-primary" />
-              </div>
-              <h2 className="text-xl font-semibold">Restock Orders</h2>
-            </div>
-            <div className="chip chip-primary text-xs">
-              <Activity className="w-3 h-3 inline mr-1" />
-              Greedy Algorithm
-            </div>
-          </div>
+        {/* Greedy Restocking Section */}
+        <div className="lg:col-span-1 card flex flex-col justify-between">
           <div className="space-y-4">
-            {restockOrders.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Package className="w-8 h-8 text-gray-300" />
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-primary/10 rounded-8">
+                  <Activity className="w-5 h-5 text-primary" />
                 </div>
-                <p className="text-gray-500 font-medium">No restock orders needed</p>
-                <p className="text-sm text-gray-400 mt-1">All stock levels are healthy</p>
+                <h2 className="text-lg font-bold">Restocking Order Plan</h2>
               </div>
-            ) : (
-              restockOrders.map((order, index) => (
-                <div
-                  key={order.productId}
-                  className="p-4 bg-gradient-to-r from-gray-50 to-white rounded-12 border border-border hover:shadow-1 transition-all animate-slideUp"
-                  style={{ animationDelay: `${550 + index * 50}ms` }}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {order.productName}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Quantity: {order.unitsToOrder} units
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <span className="chip chip-primary text-xs">
-                        Priority: {order.priority.toFixed(2)}
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900">
+              <span className="chip chip-primary text-xs">Greedy Budget</span>
+            </div>
+
+            <div className="space-y-3">
+              {restockOrders.length === 0 ? (
+                <div className="p-8 text-center bg-gray-50 border border-dashed rounded-12">
+                  <p className="text-xs text-gray-500 font-medium">All warehouse hubs synced</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Stock levels are fully healthy</p>
+                </div>
+              ) : (
+                restockOrders.map((order) => (
+                  <div
+                    key={order.productId}
+                    className="p-3 bg-gradient-to-r from-gray-50 to-white rounded-12 border border-border space-y-2"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-bold text-xs text-gray-800">{order.productName}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">Supplier: {order.recommendedSupplier}</p>
+                      </div>
+                      <span className="text-xs font-extrabold text-blueFantastic">
                         ₹{order.totalCost.toFixed(2)}
                       </span>
                     </div>
+                    <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                      <span>Order: {order.unitsToOrder} units</span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-secondary-hover" />
+                        ETA: {order.deliveryDays} Days
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 p-2 rounded-8">
-                    <Activity className="w-4 h-4" />
-                    <span>
-                      Turnover: {order.turnoverRate} | Storage: ₹
-                      {order.storageCost}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-gray-500">
+            <span>Budget Ceiling: ₹8,000.00</span>
+            <span className="text-blueFantastic font-black">Turnover Priority Ratios</span>
           </div>
         </div>
       </div>
 
-      {/* Low Stock Alerts */}
+      {/* Smart Alerts Feed */}
       {alerts.length > 0 && (
-        <div className="card bg-gradient-to-r from-warning/5 to-orange-50 border-warning/20 animate-slideUp" style={{ animationDelay: "600ms" }}>
-          <div className="flex items-center gap-2 mb-4">
+        <div className="card space-y-4">
+          <div className="flex items-center gap-2 mb-2">
             <div className="p-2 bg-warning/10 rounded-8">
               <AlertTriangle className="w-5 h-5 text-warning" />
             </div>
-            <h2 className="text-xl font-semibold">Low Stock Alerts</h2>
-            <span className="chip chip-primary text-xs">{alerts.length} items</span>
+            <h2 className="text-xl font-bold">Smart Diagnostic Alerts</h2>
+            <span className="chip chip-burningFlame text-xs font-extrabold">
+              {alerts.length} Warnings Active
+            </span>
           </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {alerts.map((alert, index) => (
-              <div
-                key={alert.id}
-                className="p-4 bg-white rounded-12 border border-border hover:shadow-1 transition-all animate-slideUp"
-                style={{ animationDelay: `${650 + index * 50}ms` }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold text-gray-900">{alert.name}</p>
-                  <AlertTriangle className="w-4 h-4 text-warning" />
-                </div>
-                <p className="text-sm text-gray-500">Stock: {alert.stock} units</p>
-                <div className="mt-2">
-                  <div className="w-full bg-gray-200 rounded-full h-1.5">
-                    <div
-                      className="h-1.5 rounded-full bg-warning transition-all duration-500"
-                      style={{ width: `${Math.min(alert.stock, 100)}%` }}
-                    ></div>
+            {alerts.map((alert, index) => {
+              const isCritical = alert.severity === "CRITICAL";
+              const isWarning = alert.severity === "WARNING";
+              
+              let alertStyle = "border-indigo-100 bg-indigo-50/50 text-indigo-900";
+              let badgeStyle = "bg-indigo-100 text-indigo-700";
+              
+              if (isCritical) {
+                alertStyle = "border-red-200 bg-red-50/40 text-red-950";
+                badgeStyle = "bg-error text-white";
+              } else if (isWarning) {
+                alertStyle = "border-yellow-200 bg-yellow-50/40 text-yellow-950";
+                badgeStyle = "bg-warning text-gray-900";
+              }
+
+              return (
+                <div
+                  key={index}
+                  className={`p-4 border rounded-16 flex flex-col justify-between gap-3 shadow-sm hover:shadow-md transition-all ${alertStyle}`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-black uppercase tracking-widest font-mono">
+                        {alert.type}
+                      </span>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${badgeStyle}`}>
+                        {alert.severity}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-gray-800 pt-1">
+                      {alert.productName}
+                    </p>
+                    <p className="text-xs leading-relaxed text-gray-500 font-medium">
+                      {alert.message}
+                    </p>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

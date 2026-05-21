@@ -12,13 +12,17 @@ import {
   Bell,
   Settings,
   LogOut,
+  Shield,
 } from "lucide-react";
 import ProductCatalog from "./components/ProductCatalog";
 import InventoryManagement from "./components/InventoryManagement";
 import CartManagement from "./components/CartManagement";
 import Dashboard from "./components/Dashboard";
+import CustomerModule from "./components/CustomerModule";
+import AuthModule from "./components/AuthModule";
 
 function App() {
+  const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -47,7 +51,42 @@ function App() {
       icon: ShoppingCart,
       description: "Cart & Checkout",
     },
+    {
+      id: "customers",
+      label: "Customers",
+      icon: Users,
+      description: "Loyalty & Purchases",
+    },
   ];
+
+  const handleLogout = () => {
+    setUser(null);
+    setActiveTab("dashboard");
+  };
+
+  // If user is not authenticated, show AuthModule as a fullscreen sign-in layout
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-surface flex flex-col justify-center items-center p-6">
+        <div className="w-full max-w-md">
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="w-12 h-12 bg-blueFantastic rounded-16 flex items-center justify-center shadow-md">
+              <Package className="w-6 h-6 text-palladian" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-abyssal leading-none">
+                E-Commerce Inventory
+              </h1>
+              <p className="text-xs text-gray-600 mt-1">
+                Role-Based Control System
+              </p>
+            </div>
+          </div>
+          <AuthModule user={user} onLogin={(u) => setUser(u)} onLogout={handleLogout} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface">
@@ -80,6 +119,7 @@ function App() {
                 </p>
               </div>
             </div>
+            
             <div className="flex items-center gap-3">
               <button className="p-2 hover:bg-oatmeal/50 rounded-8 transition-colors relative">
                 <Bell className="w-5 h-5 text-blueFantastic" />
@@ -88,16 +128,26 @@ function App() {
               <button className="p-2 hover:bg-oatmeal/50 rounded-8 transition-colors">
                 <Settings className="w-5 h-5 text-blueFantastic" />
               </button>
+              
+              {/* Dynamic User Profile Status */}
               <div className="hidden md:flex items-center gap-3 pl-3 border-l border-oatmeal">
                 <div className="w-8 h-8 bg-blueFantastic/10 rounded-full flex items-center justify-center">
                   <Users className="w-4 h-4 text-blueFantastic" />
                 </div>
                 <div className="text-left">
-                  <p className="text-sm font-medium text-abyssal">Admin User</p>
-                  <p className="text-xs text-gray-600">System Administrator</p>
+                  <p className="text-sm font-semibold text-abyssal">{user.username}</p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                    {user.role} Account
+                  </p>
                 </div>
               </div>
-              <button className="p-2 hover:bg-oatmeal/50 rounded-8 transition-colors text-error">
+
+              {/* Logout Button */}
+              <button 
+                onClick={handleLogout}
+                className="p-2 hover:bg-error/10 hover:text-error rounded-8 transition-colors text-gray-600"
+                title="Log Out"
+              >
                 <LogOut className="w-5 h-5" />
               </button>
             </div>
@@ -109,7 +159,7 @@ function App() {
       <nav className="bg-palladian border-b border-oatmeal sticky top-[73px] z-40">
         <div className="max-w-7xl mx-auto px-6">
           {/* Desktop Navigation */}
-          <div className="hidden lg:flex gap-1">
+          <div className="hidden lg:flex gap-1 py-1">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -163,10 +213,11 @@ function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 min-h-[calc(100vh-73px-60px)]">
         <div className="animate-fadeIn">
-          {activeTab === "dashboard" && <Dashboard />}
-          {activeTab === "products" && <ProductCatalog />}
-          {activeTab === "inventory" && <InventoryManagement />}
-          {activeTab === "cart" && <CartManagement />}
+          {activeTab === "dashboard" && <Dashboard user={user} />}
+          {activeTab === "products" && <ProductCatalog user={user} />}
+          {activeTab === "inventory" && <InventoryManagement user={user} />}
+          {activeTab === "cart" && <CartManagement user={user} />}
+          {activeTab === "customers" && <CustomerModule user={user} />}
         </div>
       </main>
     </div>

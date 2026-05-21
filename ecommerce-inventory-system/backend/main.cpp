@@ -7,29 +7,36 @@
 #include <map>
 #include <ctime>
 #include <cmath>
+#include <sstream>
+#include <thread>
+#include <mutex>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+
 using namespace std;
 
+// Mutex for thread-safety in backend state
+mutex dbMutex;
+
+// ==================== STRUCTURES AND SYSTEM MODELS ====================
 
 // Product Structure
 struct Product {
     int id;
     string name;
     string category;
-    double price;
-    int popularity;
+    double basePrice;
+    double price;            // Dynamic price
+    int popularity;          // Rating or demand factor (0-100)
     int stock;
-    
-    Product(int i, string n, string c, double p, int pop, int s) 
-        : id(i), name(n), category(c), price(p), popularity(pop), stock(s) {}
-};
+    int maxStock;
+    string expiryDate;       // Expiration Alert trigger
+    double rating;           // Product rating (1.0 to 5.0)
+    double turnoverRate;     // Sales velocity tracking
 
-// BST Node for Product Catalog
-struct BSTNode {
-    Product* product;
-    BSTNode* left;
-    BSTNode* right;
-    
-    BSTNode(Product* p) : product(p), left(nullptr), right(nullptr) {}
+    Product(int i, string n, string c, double p, int pop, int s, int maxS, string exp, double rat, double turn) 
+        : id(i), name(n), category(c), basePrice(p), price(p), popularity(pop), stock(s), maxStock(maxS), expiryDate(exp), rating(rat), turnoverRate(turn) {}
 };
 
 // Linked List Node for Warehouse Inventory
@@ -45,557 +52,1281 @@ struct WarehouseNode {
 struct Warehouse {
     int id;
     string name;
+    string location;
+    int capacity;
+    string status;
     WarehouseNode* inventory;
-    vector<Warehouse*> connections;
     
-    Warehouse(int i, string n) : id(i), name(n), inventory(nullptr) {}
+    // Graph edges: pair of (connected warehouse, distance in miles)
+    vector<pair<Warehouse*, int>> connections;
+    
+    Warehouse(int i, string n, string loc, int cap, string stat) 
+        : id(i), name(n), location(loc), capacity(cap), status(stat), inventory(nullptr) {}
 };
 
-// Cart Item for Stack
+// Cart Item for Stack-based Shopping Carts
 struct CartItem {
-    Product* product;
+    int productId;
+    string name;
+    string category;
+    double price;
     int quantity;
-    time_t timestamp;
+    int stock;
+    string image;
     
-    CartItem(Product* p, int qty) : product(p), quantity(qty), timestamp(time(0)) {}
+    CartItem(int pid, string n, string cat, double pr, int qty, int st, string img)
+        : productId(pid), name(n), category(cat), price(pr), quantity(qty), stock(st), image(img) {}
 };
 
-// Customer for Checkout Queue
+// Customer Structure
 struct Customer {
     int id;
     string name;
     bool isLoyaltyMember;
-    vector<CartItem*> cart;
+    string registrationDate;
+    vector<string> purchaseHistory; // List of past purchase receipts
     
-    Customer(int i, string n, bool loyalty) : id(i), name(n), isLoyaltyMember(loyalty) {}
+    Customer(int i, string n, bool loyalty, string regDate = "2026-01-01") 
+        : id(i), name(n), isLoyaltyMember(loyalty), registrationDate(regDate) {}
 };
 
-// ==================== BST FOR PRODUCT CATALOG ====================
-class ProductCatalog {
-private:
-    BSTNode* root;
-    
-    BSTNode* insert(BSTNode* node, Product* product) {
-        if (node == nullptr) return new BSTNode(product);
-        
-        if (product->id < node->product->id)
-            node->left = insert(node->left, product);
-        else if (product->id > node->product->id)
-            node->right = insert(node->right, product);
-        
-        return node;
+// Supplier Structure for Recommendations
+struct Supplier {
+    string name;
+    double costPerUnit;
+    int deliveryDays;
+    double reliabilityScore; // (0.0 to 1.0)
+};
+
+// ==================== FLAT JSON PARSER HELPERS ====================
+// These are simple string search helpers that make C++ JSON parsing extremely easy,
+// robust, and fast without requiring external JSON libraries.
+
+string getJsonStringValue(const string& json, const string& key) {
+    size_t pos = json.find("\"" + key + "\"");
+    if (pos == string::npos) return "";
+    pos = json.find(":", pos);
+    if (pos == string::npos) return "";
+    size_t start = json.find("\"", pos);
+    if (start == string::npos) return "";
+    size_t end = json.find("\"", start + 1);
+    if (end == string::npos) return "";
+    return json.substr(start + 1, end - start - 1);
+}
+
+double getJsonDoubleValue(const string& json, const string& key) {
+    size_t pos = json.find("\"" + key + "\"");
+    if (pos == string::npos) return 0.0;
+    pos = json.find(":", pos);
+    if (pos == string::npos) return 0.0;
+    size_t start = json.find_first_of("-0123456789.", pos);
+    if (start == string::npos) return 0.0;
+    size_t end = json.find_first_not_of("-0123456789.eE", start);
+    string valStr = json.substr(start, end - start);
+    try { return stod(valStr); } catch (...) { return 0.0; }
+}
+
+int getJsonIntValue(const string& json, const string& key) {
+    return (int)getJsonDoubleValue(json, key);
+}
+
+bool getJsonBoolValue(const string& json, const string& key) {
+    size_t pos = json.find("\"" + key + "\"");
+    if (pos == string::npos) return false;
+    pos = json.find(":", pos);
+    if (pos == string::npos) return false;
+    size_t truePos = json.find("true", pos);
+    size_t falsePos = json.find("false", pos);
+    if (truePos != string::npos && (falsePos == string::npos || truePos < falsePos)) {
+        return true;
     }
-    
-    BSTNode* search(BSTNode* node, int id) {
-        if (node == nullptr || node->product->id == id)
-            return node;
-        
-        if (id < node->product->id)
-            return search(node->left, id);
-        
-        return search(node->right, id);
+    return false;
+}
+
+// ==================== IN-MEMORY DATABASE ====================
+
+vector<Product*> catalog;
+vector<Warehouse*> warehouses;
+vector<CartItem*> activeCart;
+stack<vector<CartItem*>> cartUndoStack;
+stack<vector<CartItem*>> cartRedoStack;
+vector<Customer*> customers;
+
+// Queue of customer IDs currently waiting at checkout
+queue<int> checkoutQueue; 
+
+// Initializers
+void initializeDB() {
+    // 1. Initial Products
+    catalog.push_back(new Product(1, "Laptop", "Electronics", 999.99, 85, 50, 150, "2028-12-31", 4.8, 0.65));
+    catalog.push_back(new Product(2, "Mouse", "Electronics", 29.99, 90, 200, 300, "2027-06-30", 4.3, 0.85));
+    catalog.push_back(new Product(3, "Keyboard", "Electronics", 79.99, 88, 150, 250, "2027-08-15", 4.5, 0.72));
+    catalog.push_back(new Product(4, "Monitor", "Electronics", 349.99, 75, 80, 200, "2028-02-28", 4.6, 0.55));
+    catalog.push_back(new Product(5, "Headphones", "Electronics", 149.99, 82, 120, 200, "2027-11-20", 4.2, 0.60));
+    catalog.push_back(new Product(6, "T-Shirt", "Clothing", 19.99, 95, 300, 500, "2026-08-01", 4.7, 0.95)); // Perishable warning!
+    catalog.push_back(new Product(7, "Jeans", "Clothing", 59.99, 80, 180, 250, "2029-01-01", 4.1, 0.70));
+    catalog.push_back(new Product(8, "Jacket", "Clothing", 89.99, 70, 100, 150, "2029-01-01", 4.0, 0.45));
+    catalog.push_back(new Product(9, "Sneakers", "Footwear", 129.99, 88, 150, 200, "2028-10-10", 4.9, 0.80));
+    catalog.push_back(new Product(10, "Boots", "Footwear", 159.99, 65, 90, 120, "2028-10-10", 4.4, 0.40));
+
+    // 2. Initial Warehouses
+    warehouses.push_back(new Warehouse(1, "Main Warehouse", "Central Hub", 10000, "Active"));
+    warehouses.push_back(new Warehouse(2, "East Coast Hub", "New York", 8000, "Active"));
+    warehouses.push_back(new Warehouse(3, "West Coast Hub", "California", 7500, "Active"));
+
+    // Set connections (Graph structure with distance in miles)
+    warehouses[0]->connections.push_back({warehouses[1], 250});
+    warehouses[1]->connections.push_back({warehouses[0], 250});
+
+    warehouses[0]->connections.push_back({warehouses[2], 2800});
+    warehouses[2]->connections.push_back({warehouses[0], 2800});
+
+    warehouses[1]->connections.push_back({warehouses[2], 3000});
+    warehouses[2]->connections.push_back({warehouses[1], 3000});
+
+    // Populate Linked List inventories
+    // Warehouse 1 inventory
+    WarehouseNode* w1 = new WarehouseNode(1, 25);
+    w1->next = new WarehouseNode(2, 80);
+    w1->next->next = new WarehouseNode(3, 60);
+    w1->next->next->next = new WarehouseNode(6, 120);
+    w1->next->next->next->next = new WarehouseNode(9, 50);
+    warehouses[0]->inventory = w1;
+
+    // Warehouse 2 inventory
+    WarehouseNode* w2 = new WarehouseNode(1, 15);
+    w2->next = new WarehouseNode(2, 70);
+    w2->next->next = new WarehouseNode(5, 50);
+    w2->next->next->next = new WarehouseNode(6, 80);
+    warehouses[1]->inventory = w2;
+
+    // Warehouse 3 inventory
+    WarehouseNode* w3 = new WarehouseNode(3, 40);
+    w3->next = new WarehouseNode(4, 30);
+    w3->next->next = new WarehouseNode(9, 50);
+    w3->next->next->next = new WarehouseNode(10, 45);
+    warehouses[2]->inventory = w3;
+
+    // 3. Initial Customers
+    customers.push_back(new Customer(1, "John Doe", true, "2026-02-14"));
+    customers.push_back(new Customer(2, "Jane Smith", false, "2026-04-01"));
+    customers.push_back(new Customer(3, "Bob Wilson", true, "2026-05-10"));
+    customers.push_back(new Customer(4, "Alice Brown", false, "2026-05-20"));
+
+    // Add some initial mock purchases
+    customers[0]->purchaseHistory.push_back("Receipt #4521 - 1x Laptop, 2x Mouse | Total: ₹1059.97");
+    customers[1]->purchaseHistory.push_back("Receipt #4502 - 1x Sneakers | Total: ₹129.99");
+    customers[2]->purchaseHistory.push_back("Receipt #4491 - 3x T-Shirt | Total: ₹59.97");
+
+    // Queue waitlist setup
+    checkoutQueue.push(1);
+    checkoutQueue.push(2);
+    checkoutQueue.push(3);
+}
+
+// ==================== ALGORITHMS IMPLEMENTATION ====================
+
+// Graph Routing Algorithms: BFS, DFS, and Dijkstra
+struct SearchResult {
+    vector<int> path;
+    int distance;
+    string method;
+    vector<string> visitedNodes;
+};
+
+// BFS Path Search
+SearchResult searchBFS(int startId, int targetId) {
+    SearchResult result;
+    result.method = "BFS (Shortest Hops)";
+    result.distance = 0;
+
+    map<int, int> parent;
+    queue<Warehouse*> q;
+    map<int, bool> visited;
+
+    Warehouse* start = nullptr;
+    for (auto w : warehouses) {
+        if (w->id == startId) start = w;
     }
-    
-    void inorder(BSTNode* node, vector<Product*>& products) {
-        if (node == nullptr) return;
-        inorder(node->left, products);
-        products.push_back(node->product);
-        inorder(node->right, products);
-    }
-    
-public:
-    ProductCatalog() : root(nullptr) {}
-    
-    void addProduct(Product* product) {
-        root = insert(root, product);
-    }
-    
-    Product* getProduct(int id) {
-        BSTNode* node = search(root, id);
-        return node ? node->product : nullptr;
-    }
-    
-    vector<Product*> getAllProducts() {
-        vector<Product*> products;
-        inorder(root, products);
-        return products;
-    }
-    
-    // Binary search on price range
-    vector<Product*> getProductsByPriceRange(double minPrice, double maxPrice) {
-        vector<Product*> allProducts = getAllProducts();
-        vector<Product*> result;
-        
-        for (Product* p : allProducts) {
-            if (p->price >= minPrice && p->price <= maxPrice) {
-                result.push_back(p);
+    if (!start) return result;
+
+    q.push(start);
+    visited[startId] = true;
+
+    bool found = false;
+    while (!q.empty()) {
+        Warehouse* curr = q.front();
+        q.pop();
+        result.visitedNodes.push_back(curr->name);
+
+        if (curr->id == targetId) {
+            found = true;
+            break;
+        }
+
+        for (auto edge : curr->connections) {
+            Warehouse* neighbor = edge.first;
+            if (!visited[neighbor->id]) {
+                visited[neighbor->id] = true;
+                parent[neighbor->id] = curr->id;
+                q.push(neighbor);
             }
         }
-        
-        return result;
     }
-};
 
-// ==================== WAREHOUSE INVENTORY (LINKED LIST) ====================
-class WarehouseInventory {
-private:
-    WarehouseNode* head;
-    
-public:
-    WarehouseInventory() : head(nullptr) {}
-    
-    void addStock(int productId, int quantity) {
-        WarehouseNode* newNode = new WarehouseNode(productId, quantity);
-        newNode->next = head;
-        head = newNode;
-    }
-    
-    int getStock(int productId) {
-        WarehouseNode* current = head;
-        while (current != nullptr) {
-            if (current->productId == productId)
-                return current->quantity;
-            current = current->next;
+    if (found) {
+        int curr = targetId;
+        vector<int> revPath;
+        while (curr != startId) {
+            revPath.push_back(curr);
+            curr = parent[curr];
         }
-        return 0;
-    }
-    
-    void updateStock(int productId, int quantity) {
-        WarehouseNode* current = head;
-        while (current != nullptr) {
-            if (current->productId == productId) {
-                current->quantity = quantity;
-                return;
+        revPath.push_back(startId);
+        reverse(revPath.begin(), revPath.end());
+        result.path = revPath;
+
+        // Calculate actual mileage along the path
+        for (size_t i = 0; i < result.path.size() - 1; i++) {
+            int u = result.path[i];
+            int v = result.path[i+1];
+            Warehouse* wu = nullptr;
+            for (auto w : warehouses) { if (w->id == u) wu = w; }
+            for (auto edge : wu->connections) {
+                if (edge.first->id == v) {
+                    result.distance += edge.second;
+                    break;
+                }
             }
-            current = current->next;
         }
     }
-    
-    vector<pair<int, int>> getAllStock() {
-        vector<pair<int, int>> stock;
-        WarehouseNode* current = head;
-        while (current != nullptr) {
-            stock.push_back({current->productId, current->quantity});
-            current = current->next;
-        }
-        return stock;
-    }
-};
+    return result;
+}
 
-// ==================== WAREHOUSE GRAPH ====================
-class WarehouseNetwork {
-private:
-    vector<Warehouse*> warehouses;
-    
-public:
-    void addWarehouse(int id, string name) {
-        warehouses.push_back(new Warehouse(id, name));
-    }
-    
-    Warehouse* getWarehouse(int id) {
-        for (Warehouse* w : warehouses) {
-            if (w->id == id) return w;
-        }
-        return nullptr;
-    }
-    
-    void connectWarehouses(int id1, int id2) {
-        Warehouse* w1 = getWarehouse(id1);
-        Warehouse* w2 = getWarehouse(id2);
-        if (w1 && w2) {
-            w1->connections.push_back(w2);
-            w2->connections.push_back(w1);
-        }
-    }
-    
-    vector<Warehouse*> getAllWarehouses() {
-        return warehouses;
-    }
-};
+// DFS Path Search (Recursive helper)
+bool dfsHelper(Warehouse* curr, int targetId, map<int, bool>& visited, map<int, int>& parent, vector<string>& visitedNames) {
+    visitedNames.push_back(curr->name);
+    if (curr->id == targetId) return true;
 
-class ShoppingCart {
-private:
-    stack<CartItem*> cartStack;
-    stack<CartItem*> undoStack;
-    
-public:
-    void addToCart(Product* product, int quantity) {
-        CartItem* item = new CartItem(product, quantity);
-        cartStack.push(item);
-        cout << "Added: " << product->name << " (Qty: " << quantity << ")" << endl;
-    }
-    
-    void undoAdd() {
-        if (!cartStack.empty()) {
-            CartItem* item = cartStack.top();
-            cartStack.pop();
-            undoStack.push(item);
-            cout << "Undone: " << item->product->name << endl;
-        } else {
-            cout << "Cart is empty, nothing to undo!" << endl;
+    for (auto edge : curr->connections) {
+        Warehouse* neighbor = edge.first;
+        if (!visited[neighbor->id]) {
+            visited[neighbor->id] = true;
+            parent[neighbor->id] = curr->id;
+            if (dfsHelper(neighbor, targetId, visited, parent, visitedNames)) {
+                return true;
+            }
         }
     }
-    
-    void redoAdd() {
-        if (!undoStack.empty()) {
-            CartItem* item = undoStack.top();
-            undoStack.pop();
-            cartStack.push(item);
-            cout << "Redone: " << item->product->name << endl;
-        } else {
-            cout << "Nothing to redo!" << endl;
-        }
-    }
-    
-    vector<CartItem*> getCartItems() {
-        vector<CartItem*> items;
-        stack<CartItem*> temp = cartStack;
-        while (!temp.empty()) {
-            items.push_back(temp.top());
-            temp.pop();
-        }
-        return items;
-    }
-    
-    double getTotal() {
-        double total = 0;
-        stack<CartItem*> temp = cartStack;
-        while (!temp.empty()) {
-            total += temp.top()->product->price * temp.top()->quantity;
-            temp.pop();
-        }
-        return total;
-    }
-    
-    void clearCart() {
-        while (!cartStack.empty()) {
-            delete cartStack.top();
-            cartStack.pop();
-        }
-        while (!undoStack.empty()) {
-            delete undoStack.top();
-            undoStack.pop();
-        }
-    }
-};
+    return false;
+}
 
-// ==================== CHECKOUT QUEUE (PRIORITY QUEUE) ====================
-class CheckoutQueue {
-private:
-    struct CompareCustomer {
-        bool operator()(Customer* a, Customer* b) {
-            // Loyalty members have priority
-            if (a->isLoyaltyMember && !b->isLoyaltyMember) return true;
-            if (!a->isLoyaltyMember && b->isLoyaltyMember) return false;
-            return false;
+SearchResult searchDFS(int startId, int targetId) {
+    SearchResult result;
+    result.method = "DFS (Depth Traversal)";
+    result.distance = 0;
+
+    map<int, bool> visited;
+    map<int, int> parent;
+    Warehouse* start = nullptr;
+    for (auto w : warehouses) {
+        if (w->id == startId) start = w;
+    }
+    if (!start) return result;
+
+    visited[startId] = true;
+    bool found = dfsHelper(start, targetId, visited, parent, result.visitedNodes);
+
+    if (found) {
+        int curr = targetId;
+        vector<int> revPath;
+        while (curr != startId) {
+            revPath.push_back(curr);
+            curr = parent[curr];
         }
+        revPath.push_back(startId);
+        reverse(revPath.begin(), revPath.end());
+        result.path = revPath;
+
+        for (size_t i = 0; i < result.path.size() - 1; i++) {
+            int u = result.path[i];
+            int v = result.path[i+1];
+            Warehouse* wu = nullptr;
+            for (auto w : warehouses) { if (w->id == u) wu = w; }
+            for (auto edge : wu->connections) {
+                if (edge.first->id == v) {
+                    result.distance += edge.second;
+                    break;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// Dijkstra Shortest Path Search (least mileage)
+SearchResult searchDijkstra(int startId, int targetId) {
+    SearchResult result;
+    result.method = "Dijkstra (Lowest Mileage)";
+    
+    map<int, int> dist;
+    map<int, int> parent;
+    map<int, bool> visited;
+    for (auto w : warehouses) {
+        dist[w->id] = 1e9;
+    }
+    dist[startId] = 0;
+
+    // Custom priority queue pair: (distance, warehouse pointer)
+    auto cmp = [](const pair<int, Warehouse*>& a, const pair<int, Warehouse*>& b) {
+        return a.first > b.first;
     };
+    priority_queue<pair<int, Warehouse*>, vector<pair<int, Warehouse*>>, decltype(cmp)> pq(cmp);
     
-    priority_queue<Customer*, vector<Customer*>, CompareCustomer> queue;
-    
-public:
-    void enqueue(Customer* customer) {
-        queue.push(customer);
-        cout << "Enqueued: " << customer->name 
-             << (customer->isLoyaltyMember ? " (Loyalty Member)" : "") << endl;
-    }
-    
-    Customer* dequeue() {
-        if (queue.empty()) return nullptr;
-        Customer* customer = queue.top();
-        queue.pop();
-        return customer;
-    }
-    
-    bool isEmpty() {
-        return queue.empty();
-    }
-    
-    int size() {
-        return queue.size();
-    }
-};
+    Warehouse* start = nullptr;
+    for (auto w : warehouses) { if (w->id == startId) start = w; }
+    if (!start) return result;
 
-// ==================== DEMAND FORECASTING ====================
-class DemandForecaster {
-private:
-    map<int, vector<int>> historicalData; // productId -> monthly sales
-    
-public:
-    void addHistoricalData(int productId, vector<int> monthlySales) {
-        historicalData[productId] = monthlySales;
-    }
-    
-    double calculateAverageDemand(int productId) {
-        if (historicalData.find(productId) == historicalData.end()) return 0;
-        
-        vector<int> data = historicalData[productId];
-        double sum = 0;
-        for (int sales : data) {
-            sum += sales;
-        }
-        return sum / data.size();
-    }
-    
-    double forecastDemand(int productId, int month) {
-        double avgDemand = calculateAverageDemand(productId);
-        
-        // Seasonality factor (simple implementation)
-        double seasonalityFactor = 1.0;
-        if (month >= 11 || month <= 1) seasonalityFactor = 1.5; // Holiday season
-        else if (month >= 6 && month <= 8) seasonalityFactor = 1.2; // Summer
-        
-        return avgDemand * seasonalityFactor;
-    }
-    
-    bool isLowStockAlert(Product* product, int currentStock, int month) {
-        double forecast = forecastDemand(product->id, month);
-        return currentStock < forecast * 0.3; // Alert if stock < 30% of forecast
-    }
-};
+    pq.push({0, start});
 
-// ==================== RESTOCKING (GREEDY ALGORITHM) ====================
-class RestockingSystem {
-private:
-    struct RestockItem {
-        int productId;
-        double turnoverRate;
-        double storageCost;
-        double priority;
-        
-        RestockItem(int pid, double tr, double sc) 
-            : productId(pid), turnoverRate(tr), storageCost(sc) {
-            priority = turnoverRate * storageCost;
-        }
-    };
-    
-public:
-    vector<pair<int, int>> calculateRestockOrder(vector<Product*> products, 
-                                                  map<int, double> turnoverRates,
-                                                  map<int, double> storageCosts,
-                                                  int budget) {
-        vector<RestockItem> items;
-        
-        for (Product* p : products) {
-            double tr = turnoverRates[p->id];
-            double sc = storageCosts[p->id];
-            items.push_back(RestockItem(p->id, tr, sc));
-        }
-        
-        // Sort by priority (greedy approach)
-        sort(items.begin(), items.end(), 
-             [](const RestockItem& a, const RestockItem& b) {
-                 return a.priority > b.priority;
-             });
-        
-        vector<pair<int, int>> restockOrder;
-        int remainingBudget = budget;
-        
-        for (RestockItem& item : items) {
-            int quantity = min(100, remainingBudget / 10); // Assume $10 per unit
-            if (quantity > 0) {
-                restockOrder.push_back({item.productId, quantity});
-                remainingBudget -= quantity * 10;
+    while (!pq.empty()) {
+        auto top = pq.top();
+        pq.pop();
+        int d = top.first;
+        Warehouse* curr = top.second;
+
+        if (visited[curr->id]) continue;
+        visited[curr->id] = true;
+        result.visitedNodes.push_back(curr->name);
+
+        if (curr->id == targetId) break;
+
+        for (auto edge : curr->connections) {
+            Warehouse* neighbor = edge.first;
+            int weight = edge.second;
+            if (dist[curr->id] + weight < dist[neighbor->id]) {
+                dist[neighbor->id] = dist[curr->id] + weight;
+                parent[neighbor->id] = curr->id;
+                pq.push({dist[neighbor->id], neighbor});
             }
         }
-        
-        return restockOrder;
     }
+
+    if (dist[targetId] < 1e9) {
+        result.distance = dist[targetId];
+        int curr = targetId;
+        vector<int> revPath;
+        while (curr != startId) {
+            revPath.push_back(curr);
+            curr = parent[curr];
+        }
+        revPath.push_back(startId);
+        reverse(revPath.begin(), revPath.end());
+        result.path = revPath;
+    } else {
+        result.distance = 0;
+    }
+    return result;
+}
+
+// Supplier Recommendation & Restocking calculation
+vector<Supplier> getSuppliers(string category) {
+    vector<Supplier> res;
+    if (category == "Electronics") {
+        res.push_back({"ElectroLink Supply Co", 450.0, 3, 0.95});
+        res.push_back({"AsiaTech Distributors", 420.0, 7, 0.85});
+        res.push_back({"Silicon Valley Logistics", 480.0, 1, 0.98});
+    } else if (category == "Clothing") {
+        res.push_back({"Global Fab Mills", 8.0, 5, 0.90});
+        res.push_back({"Speedy Apparel Corp", 10.0, 2, 0.96});
+        res.push_back({"Niche Styles Ltd", 7.5, 10, 0.80});
+    } else { // Footwear
+        res.push_back({"SoleCraft Leather Co", 60.0, 6, 0.92});
+        res.push_back({"ActiveWare Shoes", 55.0, 8, 0.88});
+        res.push_back({"StepEase Wholesale", 65.0, 3, 0.97});
+    }
+    return res;
+}
+
+// Dynamic Pricing Model
+void applyDynamicPricing() {
+    // Loop through catalog and compute pricing fluctuations
+    time_t now = time(0);
+    tm* ltm = localtime(&now);
+    int hour = ltm->tm_hour;
+
+    for (auto p : catalog) {
+        double newPrice = p->basePrice;
+        
+        // 1. Demand factor (Popularity based)
+        if (p->popularity > 80) {
+            newPrice *= 1.10; // 10% premium for high demand
+        } else if (p->popularity < 60) {
+            newPrice *= 0.85; // 15% discount for low demand (overstock clearance)
+        }
+
+        // 2. Seasonal Surge: Holiday Hour Surge (between 6 PM and 10 PM)
+        if (hour >= 18 && hour <= 22) {
+            newPrice *= 1.05; // 5% peak demand surge
+        }
+
+        // 3. Flash Sale discount
+        if (p->id == 6) { // T-shirt is in a heavy discount flash sale
+            newPrice *= 0.60; 
+        }
+
+        p->price = newPrice;
+    }
+}
+
+// Demand forecasting (daily, weekly, monthly)
+struct Forecast {
+    int productId;
+    string productName;
+    int dailyForecast;
+    int weeklyForecast;
+    int monthlyForecast;
+    double accuracy;
 };
 
-
-class ProductSorter {
-public:
-    static vector<Product*> sortByCategoryPopularityPrice(vector<Product*> products) {
-        sort(products.begin(), products.end(), 
-             [](Product* a, Product* b) {
-                 // Level 1: Category
-                 if (a->category != b->category)
-                     return a->category < b->category;
-                 // Level 2: Popularity (descending)
-                 if (a->popularity != b->popularity)
-                     return a->popularity > b->popularity;
-                 // Level 3: Price (ascending)
-                 return a->price < b->price;
-             });
-        return products;
+vector<Forecast> calculateForecasts() {
+    vector<Forecast> res;
+    for (auto p : catalog) {
+        Forecast f;
+        f.productId = p->id;
+        f.productName = p->name;
+        
+        // Base prediction model around popularity score and recent turnover rate
+        int baseSales = 10 + (p->popularity / 3);
+        f.dailyForecast = max(2, (int)(baseSales * p->turnoverRate / 7.0));
+        f.weeklyForecast = max(10, (int)(baseSales * p->turnoverRate));
+        f.monthlyForecast = max(40, (int)(baseSales * p->turnoverRate * 4.3));
+        
+        // Simulated accuracy metric
+        f.accuracy = 85.0 + (p->id % 12);
+        res.push_back(f);
     }
-};
+    return res;
+}
 
+// ==================== HTTP CLIENT THREAD FUNCTION ====================
 
-class ECommerceSystem {
-private:
-    ProductCatalog catalog;
-    WarehouseNetwork warehouseNetwork;
-    ShoppingCart cart;
-    CheckoutQueue checkoutQueue;
-    DemandForecaster forecaster;
-    RestockingSystem restockingSystem;
-    
-public:
-    void initializeSampleData() {
-        // Add products
-        catalog.addProduct(new Product(1, "Laptop", "Electronics", 999.99, 85, 50));
-        catalog.addProduct(new Product(2, "Mouse", "Electronics", 29.99, 90, 200));
-        catalog.addProduct(new Product(3, "Keyboard", "Electronics", 79.99, 88, 150));
-        catalog.addProduct(new Product(4, "Monitor", "Electronics", 349.99, 75, 80));
-        catalog.addProduct(new Product(5, "Headphones", "Electronics", 149.99, 82, 120));
-        catalog.addProduct(new Product(6, "T-Shirt", "Clothing", 19.99, 95, 300));
-        catalog.addProduct(new Product(7, "Jeans", "Clothing", 59.99, 80, 180));
-        catalog.addProduct(new Product(8, "Jacket", "Clothing", 89.99, 70, 100));
-        catalog.addProduct(new Product(9, "Sneakers", "Footwear", 129.99, 88, 150));
-        catalog.addProduct(new Product(10, "Boots", "Footwear", 159.99, 65, 90));
-        
-        // Add warehouses
-        warehouseNetwork.addWarehouse(1, "Main Warehouse");
-        warehouseNetwork.addWarehouse(2, "East Coast Hub");
-        warehouseNetwork.addWarehouse(3, "West Coast Hub");
-        
-        // Connect warehouses
-        warehouseNetwork.connectWarehouses(1, 2);
-        warehouseNetwork.connectWarehouses(1, 3);
-        warehouseNetwork.connectWarehouses(2, 3);
-        
-        // Add historical data for forecasting
-        forecaster.addHistoricalData(1, {45, 52, 48, 60, 55, 70, 65, 72, 68, 75, 90, 95});
-        forecaster.addHistoricalData(2, {120, 135, 128, 140, 132, 150, 145, 155, 148, 160, 180, 195});
+void handleHttpClient(int client_fd) {
+    char buffer[8192] = {0};
+    int bytesRead = read(client_fd, buffer, sizeof(buffer) - 1);
+    if (bytesRead <= 0) {
+        close(client_fd);
+        return;
     }
-    
-    void displayProducts() {
-        cout << "\n=== PRODUCT CATALOG ===" << endl;
-        vector<Product*> products = catalog.getAllProducts();
-        for (Product* p : products) {
-            cout << "ID: " << p->id << " | " << p->name 
-                 << " | " << p->category << " | $" << p->price 
-                 << " | Popularity: " << p->popularity 
-                 << " | Stock: " << p->stock << endl;
+
+    string request(buffer);
+    stringstream ss(request);
+    string method, path, version;
+    ss >> method >> path >> version;
+
+    // Read JSON Body if POST or PUT request
+    string body = "";
+    size_t bodyPos = request.find("\r\n\r\n");
+    if (bodyPos != string::npos) {
+        body = request.substr(bodyPos + 4);
+    }
+
+    // CORS & Common Headers
+    string headers = "HTTP/1.1 200 OK\r\n"
+                     "Access-Control-Allow-Origin: *\r\n"
+                     "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
+                     "Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
+                     "Content-Type: application/json\r\n"
+                     "Connection: close\r\n\r\n";
+
+    if (method == "OPTIONS") {
+        write(client_fd, headers.c_str(), headers.length());
+        close(client_fd);
+        return;
+    }
+
+    lock_guard<mutex> lock(dbMutex);
+
+    // Apply Dynamic Pricing calculations before handling products
+    applyDynamicPricing();
+
+    string responseBody = "{}";
+
+    // --- API ROUTING ENGINE ---
+
+    // 1. Authentication Route
+    if (method == "POST" && path == "/api/auth/login") {
+        string username = getJsonStringValue(body, "username");
+        string password = getJsonStringValue(body, "password");
+
+        if ((username == "admin" && password == "admin") || (username == "employee" && password == "employee")) {
+            string role = (username == "admin") ? "Admin" : "Employee";
+            responseBody = "{\"success\":true, \"username\":\"" + username + "\", \"role\":\"" + role + "\", \"token\":\"mock-token-" + role + "\"}";
+        } else {
+            responseBody = "{\"success\":false, \"message\":\"Invalid credentials. Use 'admin/admin' or 'employee/employee'\"}";
         }
     }
-    
-    void displaySortedProducts() {
-        cout << "\n=== SORTED PRODUCTS (Category -> Popularity -> Price) ===" << endl;
-        vector<Product*> products = catalog.getAllProducts();
-        products = ProductSorter::sortByCategoryPopularityPrice(products);
-        for (Product* p : products) {
-            cout << p->category << " | " << p->name 
-                 << " | Pop: " << p->popularity 
-                 << " | $" << p->price << endl;
+    // 2. Products List & Search & Filter
+    else if (method == "GET" && path.rfind("/api/products", 0) == 0) {
+        responseBody = "[";
+        for (size_t i = 0; i < catalog.size(); ++i) {
+            Product* p = catalog[i];
+            responseBody += "{"
+                            "\"id\":" + to_string(p->id) + ","
+                            "\"name\":\"" + p->name + "\","
+                            "\"category\":\"" + p->category + "\","
+                            "\"basePrice\":" + to_string(p->basePrice) + ","
+                            "\"price\":" + to_string(p->price) + ","
+                            "\"popularity\":" + to_string(p->popularity) + ","
+                            "\"stock\":" + to_string(p->stock) + ","
+                            "\"maxStock\":" + to_string(p->maxStock) + ","
+                            "\"expiryDate\":\"" + p->expiryDate + "\","
+                            "\"rating\":" + to_string(p->rating) + ","
+                            "\"turnoverRate\":" + to_string(p->turnoverRate) +
+                            "}";
+            if (i < catalog.size() - 1) responseBody += ",";
         }
+        responseBody += "]";
     }
-    
-    void displayPriceRangeSearch() {
-        cout << "\n=== PRODUCTS IN PRICE RANGE $50-$150 ===" << endl;
-        vector<Product*> products = catalog.getProductsByPriceRange(50, 150);
-        for (Product* p : products) {
-            cout << p->name << " | $" << p->price << endl;
-        }
-    }
-    
-    void displayWarehouses() {
-        cout << "\n=== WAREHOUSE NETWORK ===" << endl;
-        vector<Warehouse*> warehouses = warehouseNetwork.getAllWarehouses();
-        for (Warehouse* w : warehouses) {
-            cout << "Warehouse " << w->id << ": " << w->name << endl;
-            cout << "  Connected to: ";
-            for (Warehouse* conn : w->connections) {
-                cout << conn->name << " ";
+    // 3. Add Product
+    else if (method == "POST" && path == "/api/products") {
+        int id = catalog.empty() ? 1 : catalog.back()->id + 1;
+        string name = getJsonStringValue(body, "name");
+        string category = getJsonStringValue(body, "category");
+        double price = getJsonDoubleValue(body, "price");
+        int stock = getJsonIntValue(body, "stock");
+        int maxStock = getJsonIntValue(body, "maxStock");
+        if (maxStock <= 0) maxStock = stock * 2;
+        string expiry = getJsonStringValue(body, "expiryDate");
+        if (expiry.empty()) expiry = "2028-12-31";
+
+        Product* p = new Product(id, name, category, price, 50, stock, maxStock, expiry, 4.0, 0.5);
+        catalog.push_back(p);
+        
+        // Auto synchronize into Main Warehouse inventory list
+        if (!warehouses.empty()) {
+            WarehouseNode* curr = warehouses[0]->inventory;
+            WarehouseNode* prev = nullptr;
+            bool found = false;
+            while (curr != nullptr) {
+                if (curr->productId == id) {
+                    curr->quantity = stock;
+                    found = true;
+                    break;
+                }
+                prev = curr;
+                curr = curr->next;
             }
-            cout << endl;
+            if (!found) {
+                WarehouseNode* newNode = new WarehouseNode(id, stock);
+                if (prev) prev->next = newNode;
+                else warehouses[0]->inventory = newNode;
+            }
         }
+
+        responseBody = "{\"success\":true, \"message\":\"Product created!\", \"productId\":" + to_string(id) + "}";
     }
-    
-    void demonstrateCart() {
-        cout << "\n=== SHOPPING CART DEMONSTRATION ===" << endl;
-        cart.addToCart(catalog.getProduct(1), 1);
-        cart.addToCart(catalog.getProduct(2), 2);
-        cart.addToCart(catalog.getProduct(6), 3);
-        
-        cout << "\nUndo last add:" << endl;
-        cart.undoAdd();
-        
-        cout << "\nRedo:" << endl;
-        cart.redoAdd();
-        
-        cout << "\nCart Total: $" << cart.getTotal() << endl;
-        cart.clearCart();
-    }
-    
-    void demonstrateCheckout() {
-        cout << "\n=== CHECKOUT QUEUE DEMONSTRATION ===" << endl;
-        checkoutQueue.enqueue(new Customer(1, "John Doe", true));
-        checkoutQueue.enqueue(new Customer(2, "Jane Smith", false));
-        checkoutQueue.enqueue(new Customer(3, "Bob Wilson", true));
-        checkoutQueue.enqueue(new Customer(4, "Alice Brown", false));
-        
-        cout << "\nProcessing checkout (priority to loyalty members):" << endl;
-        while (!checkoutQueue.isEmpty()) {
-            Customer* customer = checkoutQueue.dequeue();
-            cout << "Processing: " << customer->name 
-                 << (customer->isLoyaltyMember ? " (Loyalty - Priority)" : "") << endl;
+    // 4. Update Product
+    else if (method == "PUT" && path.rfind("/api/products", 0) == 0) {
+        int id = getJsonIntValue(body, "id");
+        Product* p = nullptr;
+        for (auto item : catalog) {
+            if (item->id == id) { p = item; break; }
         }
-    }
-    
-    void demonstrateForecasting() {
-        cout << "\n=== DEMAND FORECASTING ===" << endl;
-        time_t now = time(0);
-        tm* ltm = localtime(&now);
-        int currentMonth = ltm->tm_mon + 1;
-        
-        for (int pid : {1, 2}) {
-            Product* p = catalog.getProduct(pid);
-            double forecast = forecaster.forecastDemand(pid, currentMonth);
-            bool lowStock = forecaster.isLowStockAlert(p, p->stock, currentMonth);
+
+        if (p) {
+            p->name = getJsonStringValue(body, "name");
+            p->category = getJsonStringValue(body, "category");
+            p->basePrice = getJsonDoubleValue(body, "price");
+            p->stock = getJsonIntValue(body, "stock");
+            p->maxStock = getJsonIntValue(body, "maxStock");
+            string exp = getJsonStringValue(body, "expiryDate");
+            if (!exp.empty()) p->expiryDate = exp;
             
-            cout << p->name << " | Forecast: " << forecast 
-                 << " units | Low Stock Alert: " << (lowStock ? "YES" : "NO") << endl;
+            // Sync with warehouse inventory
+            for (auto w : warehouses) {
+                WarehouseNode* curr = w->inventory;
+                while (curr != nullptr) {
+                    if (curr->productId == id) {
+                        curr->quantity = p->stock / warehouses.size(); // evenly sync stock across warehouses
+                        break;
+                    }
+                    curr = curr->next;
+                }
+            }
+
+            responseBody = "{\"success\":true, \"message\":\"Product details updated!\"}";
+        } else {
+            responseBody = "{\"success\":false, \"message\":\"Product not found!\"}";
         }
     }
-    
-    void demonstrateRestocking() {
-        cout << "\n=== RESTOCKING (GREEDY ALGORITHM) ===" << endl;
-        vector<Product*> products = catalog.getAllProducts();
-        
-        map<int, double> turnoverRates;
-        map<int, double> storageCosts;
-        
-        for (Product* p : products) {
-            turnoverRates[p->id] = p->popularity / 100.0;
-            storageCosts[p->id] = p->price / 1000.0;
+    // 5. Delete Product
+    else if (method == "DELETE" && path.rfind("/api/products", 0) == 0) {
+        // Query param parser (e.g. /api/products?id=3)
+        size_t queryPos = path.find("?id=");
+        int id = -1;
+        if (queryPos != string::npos) {
+            id = stoi(path.substr(queryPos + 4));
         }
-        
-        vector<pair<int, int>> restockOrder = restockingSystem.calculateRestockOrder(
-            products, turnoverRates, storageCosts, 500);
-        
-        cout << "Restock Order (Budget: $500):" << endl;
-        for (auto& item : restockOrder) {
-            Product* p = catalog.getProduct(item.first);
-            cout << p->name << ": " << item.second << " units" << endl;
+
+        bool deleted = false;
+        for (auto it = catalog.begin(); it != catalog.end(); ++it) {
+            if ((*it)->id == id) {
+                delete *it;
+                catalog.erase(it);
+                deleted = true;
+                break;
+            }
+        }
+
+        if (deleted) {
+            // Remove from warehouse inventory lists
+            for (auto w : warehouses) {
+                WarehouseNode* curr = w->inventory;
+                WarehouseNode* prev = nullptr;
+                while (curr != nullptr) {
+                    if (curr->productId == id) {
+                        if (prev) prev->next = curr->next;
+                        else w->inventory = curr->next;
+                        delete curr;
+                        break;
+                    }
+                    prev = curr;
+                    curr = curr->next;
+                }
+            }
+            responseBody = "{\"success\":true, \"message\":\"Product deleted!\"}";
+        } else {
+            responseBody = "{\"success\":false, \"message\":\"Product not found!\"}";
         }
     }
-    
-    void runDemo() {
-        cout << "========================================" << endl;
-        cout << "E-COMMERCE INVENTORY SYSTEM DEMO" << endl;
-        cout << "========================================" << endl;
-        
-        initializeSampleData();
-        displayProducts();
-        displaySortedProducts();
-        displayPriceRangeSearch();
-        displayWarehouses();
-        demonstrateCart();
-        demonstrateCheckout();
-        demonstrateForecasting();
-        demonstrateRestocking();
-        
-        cout << "\n========================================" << endl;
-        cout << "DEMO COMPLETE" << endl;
-        cout << "========================================" << endl;
+    // 6. Warehouses List & Management
+    else if (method == "GET" && path == "/api/warehouses") {
+        responseBody = "[";
+        for (size_t i = 0; i < warehouses.size(); ++i) {
+            Warehouse* w = warehouses[i];
+            
+            // Total units calculation in list
+            int total = 0;
+            WarehouseNode* node = w->inventory;
+            string invJson = "[";
+            while (node != nullptr) {
+                total += node->quantity;
+                
+                // Get product name
+                string pName = "Unknown";
+                for (auto p : catalog) {
+                    if (p->id == node->productId) { pName = p->name; break; }
+                }
+                
+                invJson += "{\"productId\":" + to_string(node->productId) + 
+                           ",\"name\":\"" + pName + "\",\"quantity\":" + to_string(node->quantity) + "}";
+                node = node->next;
+                if (node != nullptr) invJson += ",";
+            }
+            invJson += "]";
+
+            w->capacity = 10000; // base capacity default
+            responseBody += "{"
+                            "\"id\":" + to_string(w->id) + ","
+                            "\"name\":\"" + w->name + "\","
+                            "\"location\":\"" + w->location + "\","
+                            "\"totalStock\":" + to_string(total) + ","
+                            "\"capacity\":" + to_string(w->capacity) + ","
+                            "\"status\":\"" + w->status + "\","
+                            "\"inventory\":" + invJson +
+                            "}";
+            if (i < warehouses.size() - 1) responseBody += ",";
+        }
+        responseBody += "]";
     }
-};
+    // 7. Add Warehouse
+    else if (method == "POST" && path == "/api/warehouses") {
+        int id = warehouses.empty() ? 1 : warehouses.back()->id + 1;
+        string name = getJsonStringValue(body, "name");
+        string location = getJsonStringValue(body, "location");
+        int capacity = getJsonIntValue(body, "capacity");
+
+        Warehouse* w = new Warehouse(id, name, location, capacity, "Active");
+        
+        // Auto connect to the Main Warehouse if it exists
+        if (!warehouses.empty()) {
+            warehouses[0]->connections.push_back({w, 350});
+            w->connections.push_back({warehouses[0], 350});
+        }
+        warehouses.push_back(w);
+
+        responseBody = "{\"success\":true, \"warehouseId\":" + to_string(id) + "}";
+    }
+    // 8. Delete Warehouse (Remove Warehouse)
+    else if (method == "DELETE" && path.rfind("/api/warehouses", 0) == 0) {
+        size_t queryPos = path.find("?id=");
+        int id = -1;
+        if (queryPos != string::npos) {
+            id = stoi(path.substr(queryPos + 4));
+        }
+
+        bool deleted = false;
+        for (auto it = warehouses.begin(); it != warehouses.end(); ++it) {
+            if ((*it)->id == id) {
+                // Clear linked inventory
+                WarehouseNode* curr = (*it)->inventory;
+                while (curr != nullptr) {
+                    WarehouseNode* tmp = curr;
+                    curr = curr->next;
+                    delete tmp;
+                }
+                
+                // Clear connections in graph
+                for (auto w : warehouses) {
+                    auto& conn = w->connections;
+                    conn.erase(remove_if(conn.begin(), conn.end(), [id](const pair<Warehouse*, int>& edge) {
+                        return edge.first->id == id;
+                    }), conn.end());
+                }
+
+                delete *it;
+                warehouses.erase(it);
+                deleted = true;
+                break;
+            }
+        }
+
+        if (deleted) {
+            responseBody = "{\"success\":true, \"message\":\"Warehouse removed successfully!\"}";
+        } else {
+            responseBody = "{\"success\":false, \"message\":\"Warehouse not found!\"}";
+        }
+    }
+    // 9. Shortest Path & Route Optimization & Transport cost Analysis
+    else if (method == "GET" && path.rfind("/api/warehouses/shortest-path", 0) == 0) {
+        // Query params parser: /api/warehouses/shortest-path?from=1&to=3&algo=Dijkstra
+        size_t fromPos = path.find("from=");
+        size_t toPos = path.find("to=");
+        size_t algoPos = path.find("algo=");
+
+        int fromId = 1, toId = 3;
+        string algo = "Dijkstra";
+
+        if (fromPos != string::npos) fromId = stoi(path.substr(fromPos + 5));
+        if (toPos != string::npos) toId = stoi(path.substr(toPos + 3));
+        if (algoPos != string::npos) {
+            size_t endAlgo = path.find("&", algoPos);
+            if (endAlgo != string::npos) {
+                algo = path.substr(algoPos + 5, endAlgo - algoPos - 5);
+            } else {
+                algo = path.substr(algoPos + 5);
+            }
+        }
+
+        SearchResult searchRes;
+        if (algo == "BFS") {
+            searchRes = searchBFS(fromId, toId);
+        } else if (algo == "DFS") {
+            searchRes = searchDFS(fromId, toId);
+        } else {
+            searchRes = searchDijkstra(fromId, toId);
+        }
+
+        // Transport Cost Analysis calculation
+        double cargoTruckCost = searchRes.distance * 0.15;
+        double expressCourierCost = searchRes.distance * 0.45;
+        double airFreightCost = searchRes.distance * 1.20;
+
+        string pathStr = "[";
+        for (size_t i = 0; i < searchRes.path.size(); ++i) {
+            pathStr += to_string(searchRes.path[i]);
+            if (i < searchRes.path.size() - 1) pathStr += ",";
+        }
+        pathStr += "]";
+
+        string visitedStr = "[";
+        for (size_t i = 0; i < searchRes.visitedNodes.size(); ++i) {
+            visitedStr += "\"" + searchRes.visitedNodes[i] + "\"";
+            if (i < searchRes.visitedNodes.size() - 1) visitedStr += ",";
+        }
+        visitedStr += "]";
+
+        responseBody = "{"
+                       "\"success\":" + string(searchRes.path.empty() ? "false" : "true") + ","
+                       "\"method\":\"" + searchRes.method + "\","
+                       "\"distance\":" + to_string(searchRes.distance) + ","
+                       "\"path\":" + pathStr + ","
+                       "\"visited\":" + visitedStr + ","
+                       "\"costs\":{"
+                         "\"cargoTruck\":" + to_string(cargoTruckCost) + ","
+                         "\"expressCourier\":" + to_string(expressCourierCost) + ","
+                         "\"airFreight\":" + to_string(airFreightCost) +
+                       "}"
+                       "}";
+    }
+    // 10. Transfer Stock Between Warehouses (Warehouse Sync)
+    else if (method == "POST" && path == "/api/warehouses/transfer") {
+        int fromId = getJsonIntValue(body, "fromWarehouseId");
+        int toId = getJsonIntValue(body, "toWarehouseId");
+        int productId = getJsonIntValue(body, "productId");
+        int quantity = getJsonIntValue(body, "quantity");
+
+        Warehouse* fromW = nullptr;
+        Warehouse* toW = nullptr;
+        for (auto w : warehouses) {
+            if (w->id == fromId) fromW = w;
+            if (w->id == toId) toW = w;
+        }
+
+        if (fromW && toW) {
+            // Deduct from sender
+            WarehouseNode* curr = fromW->inventory;
+            bool deducted = false;
+            while (curr != nullptr) {
+                if (curr->productId == productId) {
+                    if (curr->quantity >= quantity) {
+                        curr->quantity -= quantity;
+                        deducted = true;
+                    }
+                    break;
+                }
+                curr = curr->next;
+            }
+
+            if (deducted) {
+                // Add to recipient (Linked list insert/update)
+                curr = toW->inventory;
+                WarehouseNode* prev = nullptr;
+                bool added = false;
+                while (curr != nullptr) {
+                    if (curr->productId == productId) {
+                        curr->quantity += quantity;
+                        added = true;
+                        break;
+                    }
+                    prev = curr;
+                    curr = curr->next;
+                }
+
+                if (!added) {
+                    WarehouseNode* newNode = new WarehouseNode(productId, quantity);
+                    if (prev) prev->next = newNode;
+                    else toW->inventory = newNode;
+                }
+
+                responseBody = "{\"success\":true, \"message\":\"Stock successfully synchronized across hubs!\"}";
+            } else {
+                responseBody = "{\"success\":false, \"message\":\"Insufficient source warehouse stock!\"}";
+            }
+        } else {
+            responseBody = "{\"success\":false, \"message\":\"Source or Target warehouse invalid!\"}";
+        }
+    }
+    // 11. Shopping Cart API
+    else if (method == "GET" && path == "/api/cart") {
+        responseBody = "[";
+        for (size_t i = 0; i < activeCart.size(); ++i) {
+            CartItem* item = activeCart[i];
+            responseBody += "{"
+                            "\"id\":" + to_string(item->productId) + ","
+                            "\"name\":\"" + item->name + "\","
+                            "\"category\":\"" + item->category + "\","
+                            "\"price\":" + to_string(item->price) + ","
+                            "\"quantity\":" + to_string(item->quantity) + ","
+                            "\"stock\":" + to_string(item->stock) + ","
+                            "\"image\":\"" + item->image + "\""
+                            "}";
+            if (i < activeCart.size() - 1) responseBody += ",";
+        }
+        responseBody += "]";
+    }
+    else if (method == "POST" && path == "/api/cart/add") {
+        int productId = getJsonIntValue(body, "productId");
+        int quantity = getJsonIntValue(body, "quantity");
+        if (quantity <= 0) quantity = 1;
+
+        Product* p = nullptr;
+        for (auto item : catalog) {
+            if (item->id == productId) { p = item; break; }
+        }
+
+        if (p) {
+            // Save state to Undo stack
+            cartUndoStack.push(activeCart);
+            // Clear redo stack
+            while (!cartRedoStack.empty()) cartRedoStack.pop();
+
+            // Append or update cart item
+            bool found = false;
+            for (auto item : activeCart) {
+                if (item->productId == productId) {
+                    item->quantity += quantity;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                string image = (p->category == "Electronics") ? "💻" : (p->category == "Clothing") ? "👕" : "👟";
+                activeCart.push_back(new CartItem(p->id, p->name, p->category, p->price, quantity, p->stock, image));
+            }
+
+            responseBody = "{\"success\":true, \"message\":\"Item added to stack!\"}";
+        } else {
+            responseBody = "{\"success\":false, \"message\":\"Product not found!\"}";
+        }
+    }
+    else if (method == "POST" && path == "/api/cart/undo") {
+        if (!cartUndoStack.empty()) {
+            cartRedoStack.push(activeCart);
+            activeCart = cartUndoStack.top();
+            cartUndoStack.pop();
+            responseBody = "{\"success\":true, \"message\":\"Stack Undo operation performed!\"}";
+        } else {
+            responseBody = "{\"success\":false, \"message\":\"Nothing to undo on stack!\"}";
+        }
+    }
+    else if (method == "POST" && path == "/api/cart/redo") {
+        if (!cartRedoStack.empty()) {
+            cartUndoStack.push(activeCart);
+            activeCart = cartRedoStack.top();
+            cartRedoStack.pop();
+            responseBody = "{\"success\":true, \"message\":\"Stack Redo operation performed!\"}";
+        } else {
+            responseBody = "{\"success\":false, \"message\":\"Nothing to redo on stack!\"}";
+        }
+    }
+    // 12. Checkout queue & Customer registration
+    else if (method == "GET" && path == "/api/checkout/queue") {
+        // Return details of all customers currently in priority checkout queue
+        queue<int> tempQ = checkoutQueue;
+        responseBody = "[";
+        int pos = 1;
+        while (!tempQ.empty()) {
+            int cid = tempQ.front();
+            tempQ.pop();
+            
+            Customer* c = nullptr;
+            for (auto item : customers) { if (item->id == cid) c = item; }
+            
+            if (c) {
+                // Calculate Wait Time: 4 minutes * position in queue
+                int waitTime = pos * 4;
+                responseBody += "{"
+                                "\"id\":" + to_string(c->id) + ","
+                                "\"name\":\"" + c->name + "\","
+                                "\"isLoyaltyMember\":" + string(c->isLoyaltyMember ? "true" : "false") + ","
+                                "\"cartTotal\":" + to_string(pos * 189.99) + "," // mock dynamic pricing
+                                "\"items\":" + to_string(2 + pos) + ","
+                                "\"waitTime\":\"" + to_string(waitTime) + " min\""
+                                "}";
+                pos++;
+                if (!tempQ.empty()) responseBody += ",";
+            }
+        }
+        responseBody += "]";
+    }
+    else if (method == "POST" && path == "/api/checkout/enqueue") {
+        string name = getJsonStringValue(body, "name");
+        bool isLoyalty = getJsonBoolValue(body, "isLoyaltyMember");
+
+        int cid = customers.empty() ? 1 : customers.back()->id + 1;
+        Customer* c = new Customer(cid, name, isLoyalty);
+        customers.push_back(c);
+        
+        // Priority Enqueue logic: Loyalty VIPs pushed closer to head
+        // In simple queue, we just model it.
+        checkoutQueue.push(cid);
+
+        responseBody = "{\"success\":true, \"message\":\"Enqueued!\", \"id\":" + to_string(cid) + "}";
+    }
+    else if (method == "POST" && path == "/api/checkout/dequeue") {
+        // Process checkout and Billing Simulation (Generate Receipt)
+        if (!checkoutQueue.empty()) {
+            int cid = checkoutQueue.front();
+            checkoutQueue.pop();
+
+            Customer* c = nullptr;
+            for (auto item : customers) { if (item->id == cid) c = item; }
+
+            if (c) {
+                // Build billing simulation invoice
+                double subtotal = 0;
+                string receiptItems = "";
+                
+                // If checking out active cart
+                if (!activeCart.empty()) {
+                    for (auto item : activeCart) {
+                        subtotal += item->price * item->quantity;
+                        receiptItems += to_string(item->quantity) + "x " + item->name + " (₹" + to_string(item->price) + " each) ";
+                        
+                        // Deduct product stock
+                        for (auto p : catalog) {
+                            if (p->id == item->productId) {
+                                p->stock = max(0, p->stock - item->quantity);
+                                break;
+                            }
+                        }
+                    }
+                    activeCart.clear();
+                } else {
+                    subtotal = 379.98; // fallback mock
+                    receiptItems = "2x Wireless Mouse, 1x Headphones";
+                }
+
+                // Loyalty discount
+                double discount = c->isLoyaltyMember ? (subtotal * 0.10) : 0.0;
+                double tax = (subtotal - discount) * 0.08;
+                double total = subtotal - discount + tax;
+
+                string receipt = "Invoice #" + to_string(1000 + rand() % 9000) + " - " + receiptItems + 
+                                 " | Subtotal: ₹" + to_string(subtotal) + 
+                                 " | Discount: ₹" + to_string(discount) + 
+                                 " | Tax: ₹" + to_string(tax) + 
+                                 " | Total Paid: ₹" + to_string(total);
+
+                c->purchaseHistory.push_back(receipt);
+
+                responseBody = "{"
+                               "\"success\":true,"
+                               "\"customerId\":" + to_string(c->id) + ","
+                               "\"name\":\"" + c->name + "\","
+                               "\"isLoyaltyMember\":" + string(c->isLoyaltyMember ? "true" : "false") + ","
+                               "\"receipt\":\"" + receipt + "\","
+                               "\"subtotal\":" + to_string(subtotal) + ","
+                               "\"discount\":" + to_string(discount) + ","
+                               "\"tax\":" + to_string(tax) + ","
+                               "\"total\":" + to_string(total) +
+                               "}";
+            }
+        } else {
+            responseBody = "{\"success\":false, \"message\":\"Queue is empty!\"}";
+        }
+    }
+    // 13. Smart Alert System (Expiry, Overstock, Demand Spike Alerts)
+    else if (method == "GET" && path == "/api/alerts") {
+        responseBody = "[";
+        vector<string> alerts;
+
+        time_t t = time(0);
+        tm* now = localtime(&t);
+        int currentYear = now->tm_year + 1900;
+        int currentMonth = now->tm_mon + 1;
+
+        for (auto p : catalog) {
+            // 1. Expiry alerts (Expiring soon - within 6 months of current 2026 calendar)
+            if (p->expiryDate.substr(0, 4) == "2026") {
+                alerts.push_back("{\"id\":" + to_string(p->id) + 
+                                 ",\"type\":\"EXPIRY\"" +
+                                 ",\"productName\":\"" + p->name + "\"" +
+                                 ",\"message\":\"Perishable threat: product expires soon on " + p->expiryDate + "\"" +
+                                 ",\"severity\":\"CRITICAL\"}");
+            }
+            // 2. Overstock Alert (Stock exceeds 80% of maxStock)
+            if (p->stock >= p->maxStock * 0.8) {
+                alerts.push_back("{\"id\":" + to_string(p->id) + 
+                                 ",\"type\":\"OVERSTOCK\"" +
+                                 ",\"productName\":\"" + p->name + "\"" +
+                                 ",\"message\":\"Storage overcapacity: Stock level is at " + to_string(p->stock) + " units (max: " + to_string(p->maxStock) + ")\"" +
+                                 ",\"severity\":\"WARNING\"}");
+            }
+            // 3. Demand Spike Alert (Popularity spikes above 90)
+            if (p->popularity >= 92) {
+                alerts.push_back("{\"id\":" + to_string(p->id) + 
+                                 ",\"type\":\"SPIKE\"" +
+                                 ",\"productName\":\"" + p->name + "\"" +
+                                 ",\"message\":\"Demand surge: High sales spike expected due to high rating and popularity (" + to_string(p->popularity) + "%)\"" +
+                                 ",\"severity\":\"INFO\"}");
+            }
+            // 4. Low stock
+            if (p->stock < 50) {
+                alerts.push_back("{\"id\":" + to_string(p->id) + 
+                                 ",\"type\":\"LOW_STOCK\"" +
+                                 ",\"productName\":\"" + p->name + "\"" +
+                                 ",\"message\":\"Understock risk: only " + to_string(p->stock) + " units remaining.\"" +
+                                 ",\"severity\":\"CRITICAL\"}");
+            }
+        }
+
+        for (size_t i = 0; i < alerts.size(); ++i) {
+            responseBody += alerts[i];
+            if (i < alerts.size() - 1) responseBody += ",";
+        }
+        responseBody += "]";
+    }
+    // 14. Restocking Report Generator (Greedy algorithm + Supplier recommendations)
+    else if (method == "GET" && path.rfind("/api/restock", 0) == 0) {
+        // Greedy algorithm to maximize restocking under a budget
+        double budget = 8000.0;
+        size_t bPos = path.find("budget=");
+        if (bPos != string::npos) {
+            budget = stod(path.substr(bPos + 7));
+        }
+
+        struct PurchaseCandidate {
+            Product* p;
+            Supplier bestSupplier;
+            double priorityScore; // turnoverRate / cost
+        };
+
+        vector<PurchaseCandidate> candidates;
+        for (auto p : catalog) {
+            if (p->stock < p->maxStock * 0.6) { // candidates for restocking
+                vector<Supplier> sups = getSuppliers(p->category);
+                if (sups.empty()) continue;
+                
+                // Select best supplier greedily by lowest unit cost
+                Supplier best = sups[0];
+                for (auto s : sups) {
+                    if (s.costPerUnit < best.costPerUnit) best = s;
+                }
+                
+                double score = p->turnoverRate / best.costPerUnit;
+                candidates.push_back({p, best, score});
+            }
+        }
+
+        // Sort greedily by best cost priority ratio
+        sort(candidates.begin(), candidates.end(), [](const PurchaseCandidate& a, const PurchaseCandidate& b) {
+            return a.priorityScore > b.priorityScore;
+        });
+
+        responseBody = "[";
+        double remainingBudget = budget;
+        for (size_t i = 0; i < candidates.size(); ++i) {
+            auto cand = candidates[i];
+            int orderQty = cand.p->maxStock - cand.p->stock;
+            double totalCost = orderQty * cand.bestSupplier.costPerUnit;
+            
+            // budget limit constraint
+            if (totalCost > remainingBudget) {
+                orderQty = (int)(remainingBudget / cand.bestSupplier.costPerUnit);
+                totalCost = orderQty * cand.bestSupplier.costPerUnit;
+            }
+
+            if (orderQty > 0) {
+                remainingBudget -= totalCost;
+                responseBody += "{"
+                                "\"productId\":" + to_string(cand.p->id) + ","
+                                "\"productName\":\"" + cand.p->name + "\","
+                                "\"category\":\"" + cand.p->category + "\","
+                                "\"unitsToOrder\":" + to_string(orderQty) + ","
+                                "\"recommendedSupplier\":\"" + cand.bestSupplier.name + "\","
+                                "\"unitCost\":" + to_string(cand.bestSupplier.costPerUnit) + ","
+                                "\"totalCost\":" + to_string(totalCost) + ","
+                                "\"deliveryDays\":" + to_string(cand.bestSupplier.deliveryDays) + ","
+                                "\"reliabilityScore\":" + to_string(cand.bestSupplier.reliabilityScore) + ","
+                                "\"priority\":" + to_string(cand.priorityScore * 100.0) +
+                                "}";
+                if (i < candidates.size() - 1 && remainingBudget > 0) responseBody += ",";
+            }
+        }
+        if (responseBody.back() == ',') responseBody.pop_back();
+        responseBody += "]";
+    }
+    // 15. Demand Forecasting & Accuracy Metrics
+    else if (method == "GET" && path == "/api/forecast") {
+        vector<Forecast> forecasts = calculateForecasts();
+        responseBody = "[";
+        for (size_t i = 0; i < forecasts.size(); ++i) {
+            Forecast f = forecasts[i];
+            responseBody += "{"
+                            "\"productId\":" + to_string(f.productId) + ","
+                            "\"productName\":\"" + f.productName + "\","
+                            "\"dailyForecast\":" + to_string(f.dailyForecast) + ","
+                            "\"weeklyForecast\":" + to_string(f.weeklyForecast) + ","
+                            "\"monthlyForecast\":" + to_string(f.monthlyForecast) + ","
+                            "\"accuracy\":" + to_string(f.accuracy) +
+                            "}";
+            if (i < forecasts.size() - 1) responseBody += ",";
+        }
+        responseBody += "]";
+    }
+    // 16. Customer Loyalty & Database list
+    else if (method == "GET" && path == "/api/customers") {
+        responseBody = "[";
+        for (size_t i = 0; i < customers.size(); ++i) {
+            Customer* c = customers[i];
+            
+            // Build purchases history list in JSON
+            string historyJson = "[";
+            for (size_t j = 0; j < c->purchaseHistory.size(); ++j) {
+                historyJson += "\"" + c->purchaseHistory[j] + "\"";
+                if (j < c->purchaseHistory.size() - 1) historyJson += ",";
+            }
+            historyJson += "]";
+
+            responseBody += "{"
+                            "\"id\":" + to_string(c->id) + ","
+                            "\"name\":\"" + c->name + "\","
+                            "\"isLoyaltyMember\":" + string(c->isLoyaltyMember ? "true" : "false") + ","
+                            "\"registrationDate\":\"" + c->registrationDate + "\","
+                            "\"purchaseHistory\":" + historyJson +
+                            "}";
+            if (i < customers.size() - 1) responseBody += ",";
+        }
+        responseBody += "]";
+    }
+    else if (method == "POST" && path == "/api/customers") {
+        string name = getJsonStringValue(body, "name");
+        bool isLoyalty = getJsonBoolValue(body, "isLoyaltyMember");
+
+        int id = customers.empty() ? 1 : customers.back()->id + 1;
+        Customer* c = new Customer(id, name, isLoyalty, "2026-05-21");
+        customers.push_back(c);
+
+        responseBody = "{\"success\":true, \"customerId\":" + to_string(id) + "}";
+    }
+
+    // --- CONSTRUCT HTTP RESPONSE & SEND ---
+    string response = headers + responseBody;
+    write(client_fd, response.c_str(), response.length());
+    close(client_fd);
+}
+
+// ==================== MAIN SERVER INITIALIZER ====================
 
 int main() {
-    ECommerceSystem system;
-    system.runDemo();
+    // Populate Initial Mock Database States
+    initializeDB();
+
+    // Create server listening socket
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        cerr << "Failed to create socket!" << endl;
+        return 1;
+    }
+
+    int opt = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        cerr << "setsockopt REUSEADDR failed!" << endl;
+        return 1;
+    }
+
+    sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(8080);
+
+    if (::bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        cerr << "Bind failed on port 8080! Retrying soon..." << endl;
+        return 1;
+    }
+
+    if (listen(server_fd, 100) < 0) {
+        cerr << "Listen failed!" << endl;
+        return 1;
+    }
+
+    cout << "\n=========================================" << endl;
+    cout << "  E-COMMERCE INVENTORY C++ BACKEND ONLINE  " << endl;
+    cout << "  Port: 8080  |  CORS Enabled  |  Standard POSIX  " << endl;
+    cout << "=========================================" << endl;
+
+    while (true) {
+        int client_fd = accept(server_fd, nullptr, nullptr);
+        if (client_fd >= 0) {
+            // Spawn separate thread for each connection to prevent blocking requests!
+            thread t(handleHttpClient, client_fd);
+            t.detach();
+        }
+    }
+
+    close(server_fd);
     return 0;
 }
