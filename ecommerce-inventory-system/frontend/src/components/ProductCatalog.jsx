@@ -511,7 +511,7 @@ const ProductCatalog = ({ user }) => {
       </div>
 
       {/* Products Display */}
-      {sortedProducts.length === 0 ? (
+      {filteredProducts.length === 0 ? (
         <div className="card text-center py-16 animate-fadeIn">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Package className="w-8 h-8 text-gray-300" />
@@ -528,7 +528,7 @@ const ProductCatalog = ({ user }) => {
             ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             : "grid-cols-1"
         }`}>
-          {sortedProducts.map((product, index) => {
+          {filteredProducts.map((product, index) => {
             const m = getPricingBadge(product);
             const isAdjusted = Math.abs(product.price - (product.basePrice || product.price)) > 0.05;
             
