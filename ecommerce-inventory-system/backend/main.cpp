@@ -39,6 +39,15 @@ struct Product {
         : id(i), name(n), category(c), basePrice(p), price(p), popularity(pop), stock(s), maxStock(maxS), expiryDate(exp), rating(rat), turnoverRate(turn) {}
 };
 
+// BST node keyed on product->id for O(log n) catalog lookups
+struct BSTNode {
+    Product* data;
+    BSTNode* left;
+    BSTNode* right;
+
+    BSTNode(Product* p) : data(p), left(nullptr), right(nullptr) {}
+};
+
 // Linked List Node for Warehouse Inventory
 struct WarehouseNode {
     int productId;
@@ -143,17 +152,76 @@ bool getJsonBoolValue(const string& json, const string& key) {
     return false;
 }
 
+// ==================== PRODUCT CATALOG BST (keyed by product ID) ====================
+
+BSTNode* productCatalogBST = nullptr;
+
+void insert(BSTNode*& root, Product* p) {
+    if (!p) return;
+    if (!root) {
+        root = new BSTNode(p);
+        return;
+    }
+    if (p->id < root->data->id) {
+        insert(root->left, p);
+    } else if (p->id > root->data->id) {
+        insert(root->right, p);
+    }
+    // duplicate id: keep existing node
+}
+
+Product* searchById(BSTNode* root, int id) {
+    if (!root) return nullptr;
+    if (id < root->data->id) return searchById(root->left, id);
+    if (id > root->data->id) return searchById(root->right, id);
+    return root->data;
+}
+
+void inorderList(BSTNode* root, vector<Product*>& out) {
+    if (!root) return;
+    inorderList(root->left, out);
+    out.push_back(root->data);
+    inorderList(root->right, out);
+}
+
+void deleteNode(BSTNode*& root, int id) {
+    if (!root) return;
+    if (id < root->data->id) {
+        deleteNode(root->left, id);
+    } else if (id > root->data->id) {
+        deleteNode(root->right, id);
+    } else {
+        if (!root->left) {
+            BSTNode* temp = root->right;
+            delete root;
+            root = temp;
+        } else if (!root->right) {
+            BSTNode* temp = root->left;
+            delete root;
+            root = temp;
+        } else {
+            BSTNode* succ = root->right;
+            while (succ->left) succ = succ->left;
+            root->data = succ->data;
+            deleteNode(root->right, succ->data->id);
+        }
+    }
+}
+
 // ==================== IN-MEMORY DATABASE ====================
 
-vector<Product*> catalog;
+vector<Product*> catalog;  // secondary store for iteration (GET /api/products, forecasts, etc.)
+vector<Product*> priceSortedCatalog;  // auxiliary price-sorted index for O(log n) range queries
 vector<Warehouse*> warehouses;
 vector<CartItem*> activeCart;
 stack<vector<CartItem*>> cartUndoStack;
 stack<vector<CartItem*>> cartRedoStack;
 vector<Customer*> customers;
 
-// Queue of customer IDs currently waiting at checkout
-queue<int> checkoutQueue; 
+// Priority checkout queue: pair(priority, customerId) — loyalty=1, regular=0 (higher served first)
+priority_queue<pair<int, int>, vector<pair<int, int>>, less<pair<int, int>>> checkoutQueue;
+
+bool sortByPriceOnly(const Product* a, const Product* b);
 
 // Initializers
 void initializeDB() {
@@ -168,6 +236,14 @@ void initializeDB() {
     catalog.push_back(new Product(8, "Jacket", "Clothing", 89.99, 70, 100, 150, "2029-01-01", 4.0, 0.45));
     catalog.push_back(new Product(9, "Sneakers", "Footwear", 129.99, 88, 150, 200, "2028-10-10", 4.9, 0.80));
     catalog.push_back(new Product(10, "Boots", "Footwear", 159.99, 65, 90, 120, "2028-10-10", 4.4, 0.40));
+
+    for (auto p : catalog) {
+        insert(productCatalogBST, p);
+    }
+
+    // Build price-sorted auxiliary index (PS_05 Feature 8)
+    priceSortedCatalog = catalog;
+    sort(priceSortedCatalog.begin(), priceSortedCatalog.end(), sortByPriceOnly);
 
     // 2. Initial Warehouses
     warehouses.push_back(new Warehouse(1, "Main Warehouse", "Central Hub", 10000, "Active"));
@@ -218,10 +294,10 @@ void initializeDB() {
     customers[1]->purchaseHistory.push_back("Receipt #4502 - 1x Sneakers | Total: ₹129.99");
     customers[2]->purchaseHistory.push_back("Receipt #4491 - 3x T-Shirt | Total: ₹59.97");
 
-    // Queue waitlist setup
-    checkoutQueue.push(1);
-    checkoutQueue.push(2);
-    checkoutQueue.push(3);
+    // Priority queue waitlist: loyalty members (priority 1) ahead of regular (priority 0)
+    checkoutQueue.push({1, 1}); // John Doe — loyalty
+    checkoutQueue.push({0, 2}); // Jane Smith — regular
+    checkoutQueue.push({1, 3}); // Bob Wilson — loyalty
 }
 
 // ==================== ALGORITHMS IMPLEMENTATION ====================
@@ -508,6 +584,123 @@ vector<Forecast> calculateForecasts() {
     return res;
 }
 
+// ==================== MULTI-LEVEL PRODUCT SORT (PS_05 Feature 7) ====================
+// Order: category A→Z, then popularity high→low, then price low→high
+
+bool multiLevelSort(const Product* a, const Product* b) {
+    if (a->category != b->category) return a->category < b->category;
+    if (a->popularity != b->popularity) return a->popularity > b->popularity;
+    return a->price < b->price;
+}
+
+bool sortByCategoryOnly(const Product* a, const Product* b) {
+    return a->category < b->category;
+}
+
+bool sortByPriceOnly(const Product* a, const Product* b) {
+    return a->price < b->price;
+}
+
+string productToJson(Product* p) {
+    return "{"
+           "\"id\":" + to_string(p->id) + ","
+           "\"name\":\"" + p->name + "\","
+           "\"category\":\"" + p->category + "\","
+           "\"basePrice\":" + to_string(p->basePrice) + ","
+           "\"price\":" + to_string(p->price) + ","
+           "\"popularity\":" + to_string(p->popularity) + ","
+           "\"stock\":" + to_string(p->stock) + ","
+           "\"maxStock\":" + to_string(p->maxStock) + ","
+           "\"expiryDate\":\"" + p->expiryDate + "\","
+           "\"rating\":" + to_string(p->rating) + ","
+           "\"turnoverRate\":" + to_string(p->turnoverRate) +
+           "}";
+}
+
+string catalogArrayToJson(const vector<Product*>& products) {
+    string json = "[";
+    for (size_t i = 0; i < products.size(); ++i) {
+        json += productToJson(products[i]);
+        if (i < products.size() - 1) json += ",";
+    }
+    json += "]";
+    return json;
+}
+
+// ==================== PRICE-SORTED CATALOG & BINARY SEARCH (PS_05 Feature 8) ====================
+
+void rebuildPriceSortedCatalog() {
+    priceSortedCatalog = catalog;
+    sort(priceSortedCatalog.begin(), priceSortedCatalog.end(), sortByPriceOnly);
+}
+
+void insertIntoPriceSortedCatalog(Product* p) {
+    auto it = lower_bound(
+        priceSortedCatalog.begin(), priceSortedCatalog.end(), p,
+        [](Product* a, Product* b) { return a->price < b->price; });
+    priceSortedCatalog.insert(it, p);
+}
+
+void eraseFromPriceSortedCatalog(Product* p) {
+    for (auto it = priceSortedCatalog.begin(); it != priceSortedCatalog.end(); ++it) {
+        if (*it == p) {
+            priceSortedCatalog.erase(it);
+            return;
+        }
+    }
+}
+
+// First index where price >= minPrice (std::lower_bound semantics)
+int binarySearchPriceLower(double minPrice) {
+    int lo = 0;
+    int hi = (int)priceSortedCatalog.size();
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (priceSortedCatalog[mid]->price < minPrice) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo;
+}
+
+// Last index where price <= maxPrice
+int binarySearchPriceUpper(double maxPrice) {
+    if (priceSortedCatalog.empty()) return -1;
+    int lo = 0;
+    int hi = (int)priceSortedCatalog.size() - 1;
+    int ans = -1;
+    while (lo <= hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (priceSortedCatalog[mid]->price <= maxPrice) {
+            ans = mid;
+            lo = mid + 1;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    return ans;
+}
+
+bool parseQueryParam(const string& path, const string& key, string& outVal) {
+    string needle = key + "=";
+    size_t pos = path.find(needle);
+    if (pos == string::npos) return false;
+    outVal = path.substr(pos + needle.length());
+    size_t amp = outVal.find('&');
+    if (amp != string::npos) outVal = outVal.substr(0, amp);
+    return !outVal.empty();
+}
+
+// Parse ?sort=category|price from path; default is multi-level
+string parseProductSortMode(const string& path) {
+    size_t qPos = path.find("?sort=");
+    if (qPos == string::npos) return "multi";
+    string mode = path.substr(qPos + 6);
+    size_t amp = mode.find('&');
+    if (amp != string::npos) mode = mode.substr(0, amp);
+    if (mode == "category" || mode == "price") return mode;
+    return "multi";
+}
+
 // ==================== HTTP CLIENT THREAD FUNCTION ====================
 
 void handleHttpClient(int client_fd) {
@@ -565,27 +758,55 @@ void handleHttpClient(int client_fd) {
             responseBody = "{\"success\":false, \"message\":\"Invalid credentials. Use 'admin/admin' or 'employee/employee'\"}";
         }
     }
-    // 2. Products List & Search & Filter
-    else if (method == "GET" && path.rfind("/api/products", 0) == 0) {
-        responseBody = "[";
-        for (size_t i = 0; i < catalog.size(); ++i) {
-            Product* p = catalog[i];
-            responseBody += "{"
-                            "\"id\":" + to_string(p->id) + ","
-                            "\"name\":\"" + p->name + "\","
-                            "\"category\":\"" + p->category + "\","
-                            "\"basePrice\":" + to_string(p->basePrice) + ","
-                            "\"price\":" + to_string(p->price) + ","
-                            "\"popularity\":" + to_string(p->popularity) + ","
-                            "\"stock\":" + to_string(p->stock) + ","
-                            "\"maxStock\":" + to_string(p->maxStock) + ","
-                            "\"expiryDate\":\"" + p->expiryDate + "\","
-                            "\"rating\":" + to_string(p->rating) + ","
-                            "\"turnoverRate\":" + to_string(p->turnoverRate) +
-                            "}";
-            if (i < catalog.size() - 1) responseBody += ",";
+    // 2a. Products — price-range filter (binary search) or category filter
+    else if (method == "GET" && path.rfind("/api/products/filter", 0) == 0) {
+        rebuildPriceSortedCatalog();
+
+        string categoryFilter, minStr, maxStr;
+        bool hasCategory = parseQueryParam(path, "category", categoryFilter);
+        bool hasMin = parseQueryParam(path, "minPrice", minStr);
+        bool hasMax = parseQueryParam(path, "maxPrice", maxStr);
+
+        vector<Product*> result;
+
+        if (hasCategory && !hasMin && !hasMax) {
+            for (auto p : catalog) {
+                if (p->category == categoryFilter) result.push_back(p);
+            }
+        } else {
+            double minPrice = hasMin ? stod(minStr) : 0.0;
+            double maxPrice = hasMax ? stod(maxStr) : 1e12;
+
+            int lo = binarySearchPriceLower(minPrice);
+            int hi = binarySearchPriceUpper(maxPrice);
+
+            if (lo < (int)priceSortedCatalog.size() && hi >= 0 && lo <= hi) {
+                for (int i = lo; i <= hi; ++i) {
+                    Product* p = priceSortedCatalog[i];
+                    if (hasCategory && p->category != categoryFilter) continue;
+                    result.push_back(p);
+                }
+            }
         }
-        responseBody += "]";
+
+        responseBody = catalogArrayToJson(result);
+    }
+    // 2b. Products — multi-level sorted listing (must precede generic /api/products prefix)
+    else if (method == "GET" && path.rfind("/api/products/sorted", 0) == 0) {
+        vector<Product*> sortedCatalog = catalog;
+        string sortMode = parseProductSortMode(path);
+        if (sortMode == "category") {
+            sort(sortedCatalog.begin(), sortedCatalog.end(), sortByCategoryOnly);
+        } else if (sortMode == "price") {
+            sort(sortedCatalog.begin(), sortedCatalog.end(), sortByPriceOnly);
+        } else {
+            sort(sortedCatalog.begin(), sortedCatalog.end(), multiLevelSort);
+        }
+        responseBody = catalogArrayToJson(sortedCatalog);
+    }
+    // 2c. Products List (insertion order, unchanged)
+    else if (method == "GET" && path == "/api/products") {
+        responseBody = catalogArrayToJson(catalog);
     }
     // 3. Add Product
     else if (method == "POST" && path == "/api/products") {
@@ -601,7 +822,9 @@ void handleHttpClient(int client_fd) {
 
         Product* p = new Product(id, name, category, price, 50, stock, maxStock, expiry, 4.0, 0.5);
         catalog.push_back(p);
-        
+        insert(productCatalogBST, p);
+        insertIntoPriceSortedCatalog(p);
+
         // Auto synchronize into Main Warehouse inventory list
         if (!warehouses.empty()) {
             WarehouseNode* curr = warehouses[0]->inventory;
@@ -628,10 +851,7 @@ void handleHttpClient(int client_fd) {
     // 4. Update Product
     else if (method == "PUT" && path.rfind("/api/products", 0) == 0) {
         int id = getJsonIntValue(body, "id");
-        Product* p = nullptr;
-        for (auto item : catalog) {
-            if (item->id == id) { p = item; break; }
-        }
+        Product* p = searchById(productCatalogBST, id);
 
         if (p) {
             p->name = getJsonStringValue(body, "name");
@@ -641,7 +861,12 @@ void handleHttpClient(int client_fd) {
             p->maxStock = getJsonIntValue(body, "maxStock");
             string exp = getJsonStringValue(body, "expiryDate");
             if (!exp.empty()) p->expiryDate = exp;
-            
+            p->price = p->basePrice;
+
+            // Re-sort price index after price/category change
+            applyDynamicPricing();
+            rebuildPriceSortedCatalog();
+
             // Sync with warehouse inventory
             for (auto w : warehouses) {
                 WarehouseNode* curr = w->inventory;
@@ -669,12 +894,17 @@ void handleHttpClient(int client_fd) {
         }
 
         bool deleted = false;
-        for (auto it = catalog.begin(); it != catalog.end(); ++it) {
-            if ((*it)->id == id) {
-                delete *it;
-                catalog.erase(it);
-                deleted = true;
-                break;
+        Product* p = searchById(productCatalogBST, id);
+        if (p) {
+            eraseFromPriceSortedCatalog(p);
+            deleteNode(productCatalogBST, id);
+            for (auto it = catalog.begin(); it != catalog.end(); ++it) {
+                if ((*it)->id == id) {
+                    delete *it;
+                    catalog.erase(it);
+                    deleted = true;
+                    break;
+                }
             }
         }
 
@@ -712,11 +942,10 @@ void handleHttpClient(int client_fd) {
             while (node != nullptr) {
                 total += node->quantity;
                 
-                // Get product name
+                // Get product name (BST lookup by warehouse inventory productId)
                 string pName = "Unknown";
-                for (auto p : catalog) {
-                    if (p->id == node->productId) { pName = p->name; break; }
-                }
+                Product* p = searchById(productCatalogBST, node->productId);
+                if (p) pName = p->name;
                 
                 invJson += "{\"productId\":" + to_string(node->productId) + 
                            ",\"name\":\"" + pName + "\",\"quantity\":" + to_string(node->quantity) + "}";
@@ -940,10 +1169,7 @@ void handleHttpClient(int client_fd) {
         int quantity = getJsonIntValue(body, "quantity");
         if (quantity <= 0) quantity = 1;
 
-        Product* p = nullptr;
-        for (auto item : catalog) {
-            if (item->id == productId) { p = item; break; }
-        }
+        Product* p = searchById(productCatalogBST, productId);
 
         if (p) {
             // Save state to Undo stack
@@ -991,32 +1217,42 @@ void handleHttpClient(int client_fd) {
             responseBody = "{\"success\":false, \"message\":\"Nothing to redo on stack!\"}";
         }
     }
-    // 12. Checkout queue & Customer registration
+    // 12. Checkout queue & Customer registration (priority_queue: loyalty first)
     else if (method == "GET" && path == "/api/checkout/queue") {
-        // Return details of all customers currently in priority checkout queue
-        queue<int> tempQ = checkoutQueue;
+        // priority_queue is not iterable — snapshot and sort by priority for display
+        vector<pair<int, int>> queueSnapshot;
+        priority_queue<pair<int, int>, vector<pair<int, int>>, less<pair<int, int>>> tempPQ = checkoutQueue;
+        while (!tempPQ.empty()) {
+            queueSnapshot.push_back(tempPQ.top());
+            tempPQ.pop();
+        }
+        sort(queueSnapshot.begin(), queueSnapshot.end(), [](const pair<int, int>& a, const pair<int, int>& b) {
+            if (a.first != b.first) return a.first > b.first;
+            return a.second < b.second;
+        });
+
         responseBody = "[";
         int pos = 1;
-        while (!tempQ.empty()) {
-            int cid = tempQ.front();
-            tempQ.pop();
-            
+        for (size_t i = 0; i < queueSnapshot.size(); ++i) {
+            int priorityScore = queueSnapshot[i].first;
+            int cid = queueSnapshot[i].second;
+
             Customer* c = nullptr;
             for (auto item : customers) { if (item->id == cid) c = item; }
-            
+
             if (c) {
-                // Calculate Wait Time: 4 minutes * position in queue
                 int waitTime = pos * 4;
                 responseBody += "{"
                                 "\"id\":" + to_string(c->id) + ","
                                 "\"name\":\"" + c->name + "\","
                                 "\"isLoyaltyMember\":" + string(c->isLoyaltyMember ? "true" : "false") + ","
-                                "\"cartTotal\":" + to_string(pos * 189.99) + "," // mock dynamic pricing
+                                "\"priorityScore\":" + to_string(priorityScore) + ","
+                                "\"cartTotal\":" + to_string(pos * 189.99) + ","
                                 "\"items\":" + to_string(2 + pos) + ","
                                 "\"waitTime\":\"" + to_string(waitTime) + " min\""
                                 "}";
                 pos++;
-                if (!tempQ.empty()) responseBody += ",";
+                if (i < queueSnapshot.size() - 1) responseBody += ",";
             }
         }
         responseBody += "]";
@@ -1028,17 +1264,17 @@ void handleHttpClient(int client_fd) {
         int cid = customers.empty() ? 1 : customers.back()->id + 1;
         Customer* c = new Customer(cid, name, isLoyalty);
         customers.push_back(c);
-        
-        // Priority Enqueue logic: Loyalty VIPs pushed closer to head
-        // In simple queue, we just model it.
-        checkoutQueue.push(cid);
 
-        responseBody = "{\"success\":true, \"message\":\"Enqueued!\", \"id\":" + to_string(cid) + "}";
+        int priority = isLoyalty ? 1 : 0;
+        checkoutQueue.push({priority, cid});
+
+        responseBody = "{\"success\":true, \"message\":\"Enqueued!\", \"id\":" + to_string(cid) + ","
+                       "\"priorityScore\":" + to_string(priority) + "}";
     }
     else if (method == "POST" && path == "/api/checkout/dequeue") {
-        // Process checkout and Billing Simulation (Generate Receipt)
+        // Pop highest-priority customer (loyalty VIPs served before regular)
         if (!checkoutQueue.empty()) {
-            int cid = checkoutQueue.front();
+            int cid = checkoutQueue.top().second;
             checkoutQueue.pop();
 
             Customer* c = nullptr;
@@ -1055,12 +1291,10 @@ void handleHttpClient(int client_fd) {
                         subtotal += item->price * item->quantity;
                         receiptItems += to_string(item->quantity) + "x " + item->name + " (₹" + to_string(item->price) + " each) ";
                         
-                        // Deduct product stock
-                        for (auto p : catalog) {
-                            if (p->id == item->productId) {
-                                p->stock = max(0, p->stock - item->quantity);
-                                break;
-                            }
+                        // Deduct product stock (BST lookup by cart item productId)
+                        Product* p = searchById(productCatalogBST, item->productId);
+                        if (p) {
+                            p->stock = max(0, p->stock - item->quantity);
                         }
                     }
                     activeCart.clear();
@@ -1181,19 +1415,26 @@ void handleHttpClient(int client_fd) {
             }
         }
 
-        // Sort greedily by best cost priority ratio
+        // Greedy allocation order: highest turnover/cost ratio first
         sort(candidates.begin(), candidates.end(), [](const PurchaseCandidate& a, const PurchaseCandidate& b) {
             return a.priorityScore > b.priorityScore;
         });
 
-        responseBody = "[";
+        struct RestockLine {
+            Product* p;
+            Supplier bestSupplier;
+            int orderQty;
+            double totalCost;
+            double priorityScore;
+        };
+
+        vector<RestockLine> lines;
         double remainingBudget = budget;
         for (size_t i = 0; i < candidates.size(); ++i) {
             auto cand = candidates[i];
             int orderQty = cand.p->maxStock - cand.p->stock;
             double totalCost = orderQty * cand.bestSupplier.costPerUnit;
-            
-            // budget limit constraint
+
             if (totalCost > remainingBudget) {
                 orderQty = (int)(remainingBudget / cand.bestSupplier.costPerUnit);
                 totalCost = orderQty * cand.bestSupplier.costPerUnit;
@@ -1201,22 +1442,32 @@ void handleHttpClient(int client_fd) {
 
             if (orderQty > 0) {
                 remainingBudget -= totalCost;
-                responseBody += "{"
-                                "\"productId\":" + to_string(cand.p->id) + ","
-                                "\"productName\":\"" + cand.p->name + "\","
-                                "\"category\":\"" + cand.p->category + "\","
-                                "\"unitsToOrder\":" + to_string(orderQty) + ","
-                                "\"recommendedSupplier\":\"" + cand.bestSupplier.name + "\","
-                                "\"unitCost\":" + to_string(cand.bestSupplier.costPerUnit) + ","
-                                "\"totalCost\":" + to_string(totalCost) + ","
-                                "\"deliveryDays\":" + to_string(cand.bestSupplier.deliveryDays) + ","
-                                "\"reliabilityScore\":" + to_string(cand.bestSupplier.reliabilityScore) + ","
-                                "\"priority\":" + to_string(cand.priorityScore * 100.0) +
-                                "}";
-                if (i < candidates.size() - 1 && remainingBudget > 0) responseBody += ",";
+                lines.push_back({cand.p, cand.bestSupplier, orderQty, totalCost, cand.priorityScore});
             }
         }
-        if (responseBody.back() == ',') responseBody.pop_back();
+
+        // P3 display order: category → popularity → price (groups high-priority items per category)
+        sort(lines.begin(), lines.end(), [](const RestockLine& a, const RestockLine& b) {
+            return multiLevelSort(a.p, b.p);
+        });
+
+        responseBody = "[";
+        for (size_t i = 0; i < lines.size(); ++i) {
+            const RestockLine& line = lines[i];
+            responseBody += "{"
+                            "\"productId\":" + to_string(line.p->id) + ","
+                            "\"productName\":\"" + line.p->name + "\","
+                            "\"category\":\"" + line.p->category + "\","
+                            "\"unitsToOrder\":" + to_string(line.orderQty) + ","
+                            "\"recommendedSupplier\":\"" + line.bestSupplier.name + "\","
+                            "\"unitCost\":" + to_string(line.bestSupplier.costPerUnit) + ","
+                            "\"totalCost\":" + to_string(line.totalCost) + ","
+                            "\"deliveryDays\":" + to_string(line.bestSupplier.deliveryDays) + ","
+                            "\"reliabilityScore\":" + to_string(line.bestSupplier.reliabilityScore) + ","
+                            "\"priority\":" + to_string(line.priorityScore * 100.0) +
+                            "}";
+            if (i < lines.size() - 1) responseBody += ",";
+        }
         responseBody += "]";
     }
     // 15. Demand Forecasting & Accuracy Metrics
