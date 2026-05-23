@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  NavLink,
+  Navigate,
+} from "react-router-dom";
 import {
   Package,
   Warehouse,
@@ -12,7 +18,6 @@ import {
   Settings,
   LogOut,
   Zap,
-  GitBranch,
 } from "lucide-react";
 import ProductCatalog from "./components/ProductCatalog";
 import InventoryManagement from "./components/InventoryManagement";
@@ -21,20 +26,48 @@ import Dashboard from "./components/Dashboard";
 import CustomerModule from "./components/CustomerModule";
 import AuthModule from "./components/AuthModule";
 import DynamicPricing from "./components/DynamicPricing";
-import SupplyChain from "./components/SupplyChain";
 
 function App() {
   const [user, setUser] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const tabs = [
-    { path: "/", label: "Dashboard", icon: BarChart3, description: "Overview & Analytics" },
-    { path: "/products", label: "Products", icon: Package, description: "Product Catalog" },
-    { path: "/inventory", label: "Inventory", icon: Warehouse, description: "Warehouse Management" },
-    { path: "/cart", label: "Cart", icon: ShoppingCart, description: "Cart & Checkout" },
-    { path: "/customers", label: "Customers", icon: Users, description: "Loyalty & Purchases" },
-    { path: "/pricing", label: "Pricing", icon: Zap, description: "Dynamic Pricing" },
-    { path: "/supply-chain", label: "Supply Chain", icon: GitBranch, description: "Graph & Routing" },
+    {
+      path: "/",
+      label: "Dashboard",
+      icon: BarChart3,
+      description: "Overview & Analytics",
+    },
+    {
+      path: "/products",
+      label: "Products",
+      icon: Package,
+      description: "Product Catalog",
+    },
+    {
+      path: "/inventory",
+      label: "Inventory",
+      icon: Warehouse,
+      description: "Warehouse Management",
+    },
+    {
+      path: "/cart",
+      label: "Cart",
+      icon: ShoppingCart,
+      description: "Cart & Checkout",
+    },
+    {
+      path: "/customers",
+      label: "Customers",
+      icon: Users,
+      description: "Loyalty & Purchases",
+    },
+    {
+      path: "/pricing",
+      label: "Pricing",
+      icon: Zap,
+      description: "Dynamic Pricing",
+    },
   ];
 
   const handleLogout = () => {
@@ -58,7 +91,11 @@ function App() {
               </p>
             </div>
           </div>
-          <AuthModule user={user} onLogin={(u) => setUser(u)} onLogout={handleLogout} />
+          <AuthModule
+            user={user}
+            onLogin={(u) => setUser(u)}
+            onLogout={handleLogout}
+          />
         </div>
       </div>
     );
@@ -92,11 +129,11 @@ function App() {
                     </h1>
                   </div>
                   <p className="text-xs text-gray-600 mt-0.5 hidden sm:block">
-                    Demand Forecasting & Supply Chain
+                    Dynamic Pricing & Inventory
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-3">
                 <button className="p-2 hover:bg-oatmeal/50 rounded-8 transition-colors relative">
                   <Bell className="w-5 h-5 text-blueFantastic" />
@@ -105,20 +142,22 @@ function App() {
                 <button className="p-2 hover:bg-oatmeal/50 rounded-8 transition-colors">
                   <Settings className="w-5 h-5 text-blueFantastic" />
                 </button>
-                
+
                 <div className="hidden md:flex items-center gap-3 pl-3 border-l border-oatmeal">
                   <div className="w-8 h-8 bg-blueFantastic/10 rounded-full flex items-center justify-center">
                     <Users className="w-4 h-4 text-blueFantastic" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-semibold text-abyssal">{user.username}</p>
+                    <p className="text-sm font-semibold text-abyssal">
+                      {user.username}
+                    </p>
                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
                       {user.role} Account
                     </p>
                   </div>
                 </div>
 
-                <button 
+                <button
                   onClick={handleLogout}
                   className="p-2 hover:bg-error/10 hover:text-error rounded-8 transition-colors text-gray-600"
                   title="Log Out"
@@ -194,12 +233,21 @@ function App() {
           <div className="animate-fadeIn">
             <Routes>
               <Route path="/" element={<Dashboard user={user} />} />
-              <Route path="/products" element={<ProductCatalog user={user} />} />
-              <Route path="/inventory" element={<InventoryManagement user={user} />} />
+              <Route
+                path="/products"
+                element={<ProductCatalog user={user} />}
+              />
+              <Route
+                path="/inventory"
+                element={<InventoryManagement user={user} />}
+              />
               <Route path="/cart" element={<CartManagement user={user} />} />
-              <Route path="/customers" element={<CustomerModule user={user} />} />
+              <Route
+                path="/customers"
+                element={<CustomerModule user={user} />}
+              />
               <Route path="/pricing" element={<DynamicPricing user={user} />} />
-              <Route path="/supply-chain" element={<SupplyChain user={user} />} />
+              <Route
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

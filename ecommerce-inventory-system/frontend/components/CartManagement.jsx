@@ -28,8 +28,22 @@ import { usePolling } from "@/lib/use-polling";
 import { canPartialEdit } from "@/lib/auth-context";
 
 const MOCK_QUEUE = [
-  { id: 1, name: "John Doe", isLoyaltyMember: true, cartTotal: 1029.97, items: 3, waitTime: "4 min" },
-  { id: 2, name: "Jane Smith", isLoyaltyMember: false, cartTotal: 159.99, items: 2, waitTime: "8 min" },
+  {
+    id: 1,
+    name: "John Doe",
+    isLoyaltyMember: true,
+    cartTotal: 1029.97,
+    items: 3,
+    waitTime: "4 min",
+  },
+  {
+    id: 2,
+    name: "Jane Smith",
+    isLoyaltyMember: false,
+    cartTotal: 159.99,
+    items: 2,
+    waitTime: "8 min",
+  },
 ];
 
 const CartManagement = ({ user }) => {
@@ -50,7 +64,18 @@ const CartManagement = ({ user }) => {
       setCheckoutQueue(queue);
     } catch (error) {
       console.error("Failed to load cart from backend:", error);
-      setCartItems([]);
+      // Fallback to localStorage
+      try {
+        const localCart = localStorage.getItem("cartItems");
+        if (localCart) {
+          setCartItems(JSON.parse(localCart));
+        } else {
+          setCartItems([]);
+        }
+      } catch (e) {
+        console.error("Failed to load cart from localStorage:", e);
+        setCartItems([]);
+      }
       setCheckoutQueue(MOCK_QUEUE);
     } finally {
       setLoading(false);
@@ -58,6 +83,16 @@ const CartManagement = ({ user }) => {
   };
 
   useEffect(() => {
+    // Load from localStorage first for immediate display
+    try {
+      const localCart = localStorage.getItem("cartItems");
+      if (localCart) {
+        setCartItems(JSON.parse(localCart));
+      }
+    } catch (e) {
+      console.error("Failed to load cart from localStorage:", e);
+    }
+    // Then try to sync with backend
     loadData();
   }, []);
 
@@ -119,8 +154,8 @@ const CartManagement = ({ user }) => {
 
   const clearCart = async () => {
     try {
-      // Clear endpoint not implemented yet, using local update
       setCartItems([]);
+      localStorage.setItem("cartItems", JSON.stringify([]));
     } catch (error) {
       console.error("Failed to clear cart:", error);
     }
@@ -133,10 +168,13 @@ const CartManagement = ({ user }) => {
         : item,
     );
     setCartItems(updatedItems);
+    localStorage.setItem("cartItems", JSON.stringify(updatedItems));
   };
 
   const removeItem = (id) => {
-    setCartItems(cartItems.filter((i) => i.id !== id));
+    const updatedItems = cartItems.filter((i) => i.id !== id);
+    setCartItems(updatedItems);
+    localStorage.setItem("cartItems", JSON.stringify(updatedItems));
   };
 
   const handleAddCustomer = async (customerData) => {
@@ -281,7 +319,10 @@ const CartManagement = ({ user }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Shopping Cart (Stack) */}
-        <div className="card animate-slideUp" style={{ animationDelay: "100ms" }}>
+        <div
+          className="card animate-slideUp"
+          style={{ animationDelay: "100ms" }}
+        >
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-primary/10 rounded-8">
@@ -444,7 +485,10 @@ const CartManagement = ({ user }) => {
         </div>
 
         {/* Checkout Queue (Priority Queue) */}
-        <div className="card animate-slideUp" style={{ animationDelay: "200ms" }}>
+        <div
+          className="card animate-slideUp"
+          style={{ animationDelay: "200ms" }}
+        >
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-primary/10 rounded-8">
@@ -602,9 +646,11 @@ const CartManagement = ({ user }) => {
         </div>
       </div>
 
-
       {/* Stock Validation Alert */}
-      <div className="alert alert-warning animate-slideUp" style={{ animationDelay: "400ms" }}>
+      <div
+        className="alert alert-warning animate-slideUp"
+        style={{ animationDelay: "400ms" }}
+      >
         <AlertTriangle className="w-5 h-5" />
         <div className="flex-1">
           <p className="font-medium">Stock Validation</p>
@@ -626,7 +672,9 @@ const CartManagement = ({ user }) => {
             <p className="text-sm text-gray-600 mb-2">
               Customer: <strong>{invoice.name}</strong>
               {invoice.isLoyaltyMember && (
-                <span className="chip chip-primary text-xs ml-2">VIP 10% off</span>
+                <span className="chip chip-primary text-xs ml-2">
+                  VIP 10% off
+                </span>
               )}
             </p>
             <div className="bg-gray-50 p-4 rounded-12 text-sm space-y-2 mb-4 font-mono">
@@ -638,9 +686,15 @@ const CartManagement = ({ user }) => {
               </p>
             </div>
             {invoice.receipt && (
-              <p className="text-xs text-gray-500 mb-4 break-words">{invoice.receipt}</p>
+              <p className="text-xs text-gray-500 mb-4 break-words">
+                {invoice.receipt}
+              </p>
             )}
-            <button type="button" onClick={() => setInvoice(null)} className="btn-primary w-full">
+            <button
+              type="button"
+              onClick={() => setInvoice(null)}
+              className="btn-primary w-full"
+            >
               Close Receipt
             </button>
           </div>

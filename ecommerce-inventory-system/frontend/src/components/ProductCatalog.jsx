@@ -739,7 +739,6 @@ const ProductCatalog = ({ user }) => {
           </button>
         </div>
       ) : (
-<<<<<<< HEAD
         <div
           className={`grid gap-6 animate-slideUp ${
             viewMode === "grid"
@@ -748,14 +747,6 @@ const ProductCatalog = ({ user }) => {
           }`}
         >
           {sortedProducts.map((product, index) => {
-=======
-        <div className={`grid gap-6 animate-slideUp ${
-          viewMode === "grid"
-            ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-            : "grid-cols-1"
-        }`}>
-          {filteredProducts.map((product, index) => {
->>>>>>> efd2255c13e004f0378db31eb3a294bb087a24a4
             const m = getPricingBadge(product);
             const isAdjusted =
               Math.abs(product.price - (product.basePrice || product.price)) >

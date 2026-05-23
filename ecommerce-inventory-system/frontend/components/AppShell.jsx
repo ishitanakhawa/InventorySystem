@@ -15,7 +15,6 @@ import {
   Settings,
   LogOut,
   Zap,
-  GitBranch,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
@@ -26,7 +25,6 @@ const tabs = [
   { path: "/cart", label: "Cart", icon: ShoppingCart },
   { path: "/customers", label: "Customers", icon: Users },
   { path: "/pricing", label: "Pricing", icon: Zap },
-  { path: "/supply-chain", label: "Supply Chain", icon: GitBranch },
 ];
 
 export default function AppShell({ children }) {
@@ -74,11 +72,17 @@ export default function AppShell({ children }) {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button type="button" className="p-2 hover:bg-oatmeal/50 rounded-8 relative">
+              <button
+                type="button"
+                className="p-2 hover:bg-oatmeal/50 rounded-8 relative"
+              >
                 <Bell className="w-5 h-5 text-blueFantastic" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full" />
               </button>
-              <button type="button" className="p-2 hover:bg-oatmeal/50 rounded-8">
+              <button
+                type="button"
+                className="p-2 hover:bg-oatmeal/50 rounded-8"
+              >
                 <Settings className="w-5 h-5 text-blueFantastic" />
               </button>
               <div className="hidden md:flex items-center gap-3 pl-3 border-l border-oatmeal">
@@ -86,7 +90,9 @@ export default function AppShell({ children }) {
                   <Users className="w-4 h-4 text-blueFantastic" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-abyssal">{user.username}</p>
+                  <p className="text-sm font-semibold text-abyssal">
+                    {user.username}
+                  </p>
                   <p className="text-[10px] text-gray-500 font-bold uppercase">
                     {user.role} Account
                   </p>
@@ -141,7 +147,9 @@ export default function AppShell({ children }) {
                     href={tab.path}
                     onClick={() => setMobileMenuOpen(false)}
                     className={`block px-4 py-3 rounded-8 flex items-center gap-3 ${
-                      active ? "bg-blueFantastic text-palladian" : "text-gray-600"
+                      active
+                        ? "bg-blueFantastic text-palladian"
+                        : "text-gray-600"
                     }`}
                   >
                     <Icon className="w-5 h-5" />
