@@ -5,6 +5,7 @@
 #include <queue>
 #include <algorithm>
 #include <map>
+#include <set>
 #include <ctime>
 #include <cmath>
 #include <sstream>
@@ -44,8 +45,9 @@ struct BSTNode {
     Product* data;
     BSTNode* left;
     BSTNode* right;
+    int height;
 
-    BSTNode(Product* p) : data(p), left(nullptr), right(nullptr) {}
+    BSTNode(Product* p) : data(p), left(nullptr), right(nullptr), height(1) {}
 };
 
 // Linked List Node for Warehouse Inventory
@@ -156,6 +158,46 @@ bool getJsonBoolValue(const string& json, const string& key) {
 
 BSTNode* productCatalogBST = nullptr;
 
+int getHeight(BSTNode* n) {
+    return n ? n->height : 0;
+}
+
+int getBalance(BSTNode* n) {
+    return n ? getHeight(n->left) - getHeight(n->right) : 0;
+}
+
+void updateHeight(BSTNode* n) {
+    if (n) {
+        n->height = 1 + max(getHeight(n->left), getHeight(n->right));
+    }
+}
+
+BSTNode* rotateRight(BSTNode* y) {
+    BSTNode* x = y->left;
+    BSTNode* T2 = x->right;
+
+    x->right = y;
+    y->left = T2;
+
+    updateHeight(y);
+    updateHeight(x);
+
+    return x;
+}
+
+BSTNode* rotateLeft(BSTNode* x) {
+    BSTNode* y = x->right;
+    BSTNode* T2 = y->left;
+
+    y->left = x;
+    x->right = T2;
+
+    updateHeight(x);
+    updateHeight(y);
+
+    return y;
+}
+
 void insert(BSTNode*& root, Product* p) {
     if (!p) return;
     if (!root) {
@@ -166,8 +208,35 @@ void insert(BSTNode*& root, Product* p) {
         insert(root->left, p);
     } else if (p->id > root->data->id) {
         insert(root->right, p);
+    } else {
+        return;
     }
-    // duplicate id: keep existing node
+
+    updateHeight(root);
+
+    int balance = getBalance(root);
+
+    if (balance > 1 && p->id < root->left->data->id) {
+        root = rotateRight(root);
+        return;
+    }
+
+    if (balance < -1 && p->id > root->right->data->id) {
+        root = rotateLeft(root);
+        return;
+    }
+
+    if (balance > 1 && p->id > root->left->data->id) {
+        root->left = rotateLeft(root->left);
+        root = rotateRight(root);
+        return;
+    }
+
+    if (balance < -1 && p->id < root->right->data->id) {
+        root->right = rotateRight(root->right);
+        root = rotateLeft(root);
+        return;
+    }
 }
 
 Product* searchById(BSTNode* root, int id) {
@@ -205,6 +274,34 @@ void deleteNode(BSTNode*& root, int id) {
             root->data = succ->data;
             deleteNode(root->right, succ->data->id);
         }
+    }
+
+    if (!root) return;
+
+    updateHeight(root);
+
+    int balance = getBalance(root);
+
+    if (balance > 1 && getBalance(root->left) >= 0) {
+        root = rotateRight(root);
+        return;
+    }
+
+    if (balance > 1 && getBalance(root->left) < 0) {
+        root->left = rotateLeft(root->left);
+        root = rotateRight(root);
+        return;
+    }
+
+    if (balance < -1 && getBalance(root->right) <= 0) {
+        root = rotateLeft(root);
+        return;
+    }
+
+    if (balance < -1 && getBalance(root->right) > 0) {
+        root->right = rotateRight(root->right);
+        root = rotateLeft(root);
+        return;
     }
 }
 
@@ -727,7 +824,59 @@ void handleHttpClient(int client_fd) {
         return;
     }
 
-    string request(buffer);
+    string request(buffer, bytesRead);
+
+    // Read Content-Length
+    size_t clPos = request.find("Content-Length:");
+    if (clPos == string::npos) {
+        clPos = request.find("content-length:");
+    }
+
+    int contentLength = -1;
+    if (clPos != string::npos) {
+        size_t start = clPos + 15;
+        while (start < request.length() && (request[start] == ' ' || request[start] == '\t')) {
+            start++;
+        }
+        size_t end = request.find("\r\n", start);
+        if (end != string::npos) {
+            try {
+                contentLength = stoi(request.substr(start, end - start));
+            } catch (...) {
+                contentLength = -1;
+            }
+        }
+    }
+
+    if (contentLength > 1048576) {
+        string response413 = "HTTP/1.1 413 Content Too Large\r\n"
+                             "Content-Type: application/json\r\n"
+                             "Connection: close\r\n\r\n"
+                             "{\"success\":false,\"message\":\"Request body too large\"}";
+        write(client_fd, response413.c_str(), response413.length());
+        close(client_fd);
+        return;
+    }
+
+    size_t headerEnd = request.find("\r\n\r\n");
+    if (headerEnd != string::npos && contentLength >= 0) {
+        size_t bodyStart = headerEnd + 4;
+        size_t bytesAlreadyRead = request.length() - bodyStart;
+        if (contentLength > (int)bytesAlreadyRead) {
+            size_t bytesToRead = contentLength - bytesAlreadyRead;
+            size_t totalRead = 0;
+            while (totalRead < bytesToRead) {
+                char tempBuf[4096];
+                int n = read(client_fd, tempBuf, min((size_t)sizeof(tempBuf), bytesToRead - totalRead));
+                if (n <= 0) {
+                    break;
+                }
+                request.append(tempBuf, n);
+                totalRead += n;
+            }
+        }
+    }
+
     stringstream ss(request);
     string method, path, version;
     ss >> method >> path >> version;
@@ -1559,6 +1708,66 @@ void handleHttpClient(int client_fd) {
     close(client_fd);
 }
 
+void destroyBST(BSTNode* node) {
+    if (!node) return;
+    destroyBST(node->left);
+    destroyBST(node->right);
+    delete node->data;
+    delete node;
+}
+
+void cleanupDB() {
+    destroyBST(productCatalogBST);
+    productCatalogBST = nullptr;
+
+    for (auto w : warehouses) {
+        if (w) {
+            WarehouseNode* curr = w->inventory;
+            while (curr) {
+                WarehouseNode* next = curr->next;
+                delete curr;
+                curr = next;
+            }
+            delete w;
+        }
+    }
+    warehouses.clear();
+
+    for (auto c : customers) {
+        delete c;
+    }
+    customers.clear();
+
+    std::set<CartItem*> uniqueCartItems;
+    for (auto item : activeCart) {
+        if (item) uniqueCartItems.insert(item);
+    }
+    auto tempUndo = cartUndoStack;
+    while (!tempUndo.empty()) {
+        for (auto item : tempUndo.top()) {
+            if (item) uniqueCartItems.insert(item);
+        }
+        tempUndo.pop();
+    }
+    auto tempRedo = cartRedoStack;
+    while (!tempRedo.empty()) {
+        for (auto item : tempRedo.top()) {
+            if (item) uniqueCartItems.insert(item);
+        }
+        tempRedo.pop();
+    }
+
+    for (auto item : uniqueCartItems) {
+        delete item;
+    }
+    activeCart.clear();
+    while (!cartUndoStack.empty()) cartUndoStack.pop();
+    while (!cartRedoStack.empty()) cartRedoStack.pop();
+
+    catalog.clear();
+    priceSortedCatalog.clear();
+}
+
 // ==================== MAIN SERVER INITIALIZER ====================
 
 int main() {
@@ -1608,5 +1817,6 @@ int main() {
     }
 
     close(server_fd);
+    cleanupDB();
     return 0;
 }
