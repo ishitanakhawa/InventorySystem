@@ -29,19 +29,18 @@ ecommerce-inventory-system/
 │   ├── main.cpp          # C++ backend implementation
 │   └── CMakeLists.txt    # CMake build configuration
 └── frontend/
-    ├── package.json      # React dependencies
-    ├── vite.config.js   # Vite configuration
-    ├── tailwind.config.js # Tailwind CSS configuration
-    ├── index.html        # HTML entry point
-    └── src/
-        ├── main.jsx      # React entry point
-        ├── App.jsx       # Main application component
-        ├── index.css     # Global styles with color scheme
-        └── components/
-            ├── Dashboard.jsx           # Dashboard with forecasts
-            ├── ProductCatalog.jsx      # Product catalog with BST
-            ├── InventoryManagement.jsx # Warehouse inventory
-            └── CartManagement.jsx      # Cart and checkout queue
+    ├── package.json       # Next.js dependencies
+    ├── next.config.mjs    # API proxy to C++ backend (port 8080)
+    ├── app/               # Next.js App Router pages
+    │   ├── login/         # Authentication
+    │   ├── products/      # Product catalog
+    │   ├── inventory/     # Warehouse management
+    │   ├── cart/          # Cart & checkout queue
+    │   ├── customers/     # CRM & loyalty
+    │   ├── pricing/       # Dynamic pricing engine
+    │   └── supply-chain/  # Graph routing (BFS/DFS/Dijkstra)
+    ├── components/        # Feature modules
+    └── lib/               # API client, auth, polling hooks
 ```
 
 
@@ -116,6 +115,34 @@ The system includes several custom features beyond the requirements:
 - Loyalty member priority in checkout queue
 - Multi-level product sorting
 - Low stock alerts based on demand forecasts
+
+## Running the Application
+
+**1. Start the C++ backend** (port 8080):
+```bash
+cd backend && mkdir -p build && cd build && cmake .. && make && ./inventory_system
+```
+
+**2. Start the Next.js frontend** (port 3000):
+```bash
+cd frontend && npm install && npm run dev
+```
+
+Open http://localhost:3000 — you will be redirected to `/login`.
+
+**Demo accounts:** `admin` / `admin` (full access), `employee` / `employee` (partial), or **Continue as Guest** (read-only).
+
+### App Router pages
+
+| Route | Module |
+|-------|--------|
+| `/` | Dashboard — forecasts, restocking report, smart alerts |
+| `/products` | Product catalog — search, CRUD, rating/turnover |
+| `/inventory` | Warehouses — transfer, sync, alerts, real-time stock |
+| `/cart` | Cart stack + checkout queue + billing simulation |
+| `/customers` | Registration, purchase history, loyalty |
+| `/pricing` | Dynamic pricing — demand, seasonal, discount, flash sale |
+| `/supply-chain` | BFS/DFS/Dijkstra routing + transport costs |
 
  License
 
