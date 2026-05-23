@@ -45,11 +45,13 @@ const InventoryManagement = ({ user }) => {
       const response = await fetch("http://localhost:8080/api/warehouses");
       const data = await response.json();
       setWarehouses(data);
-      if (data.length > 0 && !data.find(w => w.id === selectedWarehouse)) {
+      if (data.length > 0 && !data.find((w) => w.id === selectedWarehouse)) {
         setSelectedWarehouse(data[0].id);
       }
     } catch (err) {
-      console.warn("Failed to load warehouses from C++ server. Using offline mock database.");
+      console.warn(
+        "Failed to load warehouses from C++ server. Using offline mock database.",
+      );
       // Fail-safe mock data
       const mockWarehouses = [
         {
@@ -102,12 +104,15 @@ const InventoryManagement = ({ user }) => {
     }
   };
 
-  const selectedWarehouseData = warehouses.find((w) => w.id === selectedWarehouse) || warehouses[0];
+  const selectedWarehouseData =
+    warehouses.find((w) => w.id === selectedWarehouse) || warehouses[0];
   const inventoryData = selectedWarehouseData?.inventory || [];
 
   const handleAddWarehouse = async (warehouseData) => {
     if (user?.role !== "Admin") {
-      setError("Permission Denied: Only Admin accounts can add warehouse hubs.");
+      setError(
+        "Permission Denied: Only Admin accounts can add warehouse hubs.",
+      );
       return;
     }
 
@@ -124,7 +129,9 @@ const InventoryManagement = ({ user }) => {
       }
     } catch (err) {
       console.warn("Backend offline. Adding warehouse locally.");
-      const newId = warehouses.length ? Math.max(...warehouses.map((w) => w.id)) + 1 : 1;
+      const newId = warehouses.length
+        ? Math.max(...warehouses.map((w) => w.id)) + 1
+        : 1;
       const newWarehouse = {
         id: newId,
         name: warehouseData.name,
@@ -143,16 +150,26 @@ const InventoryManagement = ({ user }) => {
 
   const handleRemoveWarehouse = async (id) => {
     if (user?.role !== "Admin") {
-      setError("Permission Denied: Only Admin accounts can remove warehouse hubs.");
+      setError(
+        "Permission Denied: Only Admin accounts can remove warehouse hubs.",
+      );
       return;
     }
 
-    if (!confirm("Are you sure you want to decommission this warehouse hub? This will erase connected inventories.")) return;
+    if (
+      !confirm(
+        "Are you sure you want to decommission this warehouse hub? This will erase connected inventories.",
+      )
+    )
+      return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/warehouses?id=${id}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `http://localhost:8080/api/warehouses?id=${id}`,
+        {
+          method: "DELETE",
+        },
+      );
       if (response.ok) {
         setSuccess("Warehouse hub decommissioned successfully.");
         if (selectedWarehouse === id) {
@@ -174,20 +191,27 @@ const InventoryManagement = ({ user }) => {
   const handleRouteQuery = async (targetId, algo = selectedAlgo) => {
     setError("");
     if (!targetId || targetId == selectedWarehouse) return;
-    
+
     try {
       const response = await fetch(
-        `http://localhost:8080/api/warehouses/shortest-path?from=${selectedWarehouse}&to=${targetId}&algo=${algo}`
+        `http://localhost:8080/api/warehouses/shortest-path?from=${selectedWarehouse}&to=${targetId}&algo=${algo}`,
       );
       const data = await response.json();
       return data;
     } catch (err) {
-      console.warn("Backend offline. Simulating shortest path calculations locally.");
+      console.warn(
+        "Backend offline. Simulating shortest path calculations locally.",
+      );
       // Simple mock shortest path helper
-      const namesMap = { 1: "Main Warehouse", 2: "East Coast Hub", 3: "West Coast Hub" };
-      const fromName = namesMap[selectedWarehouse] || `Warehouse ${selectedWarehouse}`;
+      const namesMap = {
+        1: "Main Warehouse",
+        2: "East Coast Hub",
+        3: "West Coast Hub",
+      };
+      const fromName =
+        namesMap[selectedWarehouse] || `Warehouse ${selectedWarehouse}`;
       const toName = namesMap[targetId] || `Warehouse ${targetId}`;
-      
+
       let distance = 250;
       let path = [selectedWarehouse, parseInt(targetId)];
       let visited = [fromName, toName];
@@ -204,14 +228,19 @@ const InventoryManagement = ({ user }) => {
 
       return {
         success: true,
-        method: algo === "BFS" ? "BFS (Shortest Hops)" : algo === "DFS" ? "DFS (Depth Traversal)" : "Dijkstra (Lowest Mileage)",
+        method:
+          algo === "BFS"
+            ? "BFS (Shortest Hops)"
+            : algo === "DFS"
+              ? "DFS (Depth Traversal)"
+              : "Dijkstra (Lowest Mileage)",
         distance,
         path,
         visited,
         costs: {
           cargoTruck: distance * 0.15,
           expressCourier: distance * 0.45,
-          airFreight: distance * 1.20,
+          airFreight: distance * 1.2,
         },
       };
     }
@@ -223,7 +252,7 @@ const InventoryManagement = ({ user }) => {
 
     setRoutingResults(null);
     setIsComparing(false);
-    
+
     const results = await handleRouteQuery(routingTarget, selectedAlgo);
     if (results && results.success) {
       setRoutingResults(results);
@@ -253,23 +282,33 @@ const InventoryManagement = ({ user }) => {
     });
   };
 
-  const handleStockTransfer = async (fromWarehouseId, toWarehouseId, productId, quantity) => {
+  const handleStockTransfer = async (
+    fromWarehouseId,
+    toWarehouseId,
+    productId,
+    quantity,
+  ) => {
     if (user?.role === "Guest") {
-      setError("Permission Denied: Guest accounts cannot execute stock transfers.");
+      setError(
+        "Permission Denied: Guest accounts cannot execute stock transfers.",
+      );
       return;
     }
 
     try {
-      const response = await fetch("http://localhost:8080/api/warehouses/transfer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fromWarehouseId,
-          toWarehouseId,
-          productId,
-          quantity,
-        }),
-      });
+      const response = await fetch(
+        "http://localhost:8080/api/warehouses/transfer",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fromWarehouseId,
+            toWarehouseId,
+            productId,
+            quantity,
+          }),
+        },
+      );
       const data = await response.json();
       if (data.success) {
         setSuccess("Stock successfully transferred across hubs!");
@@ -284,21 +323,36 @@ const InventoryManagement = ({ user }) => {
       const updated = warehouses.map((w) => {
         if (w.id === fromWarehouseId) {
           const inv = w.inventory.map((i) =>
-            i.productId === productId ? { ...i, quantity: Math.max(0, i.quantity - quantity) } : i
+            i.productId === productId
+              ? { ...i, quantity: Math.max(0, i.quantity - quantity) }
+              : i,
           );
-          return { ...w, inventory: inv, totalStock: inv.reduce((sum, item) => sum + item.quantity, 0) };
+          return {
+            ...w,
+            inventory: inv,
+            totalStock: inv.reduce((sum, item) => sum + item.quantity, 0),
+          };
         }
         if (w.id === toWarehouseId) {
           const exists = w.inventory.find((i) => i.productId === productId);
           let inv = [];
           if (exists) {
             inv = w.inventory.map((i) =>
-              i.productId === productId ? { ...i, quantity: i.quantity + quantity } : i
+              i.productId === productId
+                ? { ...i, quantity: i.quantity + quantity }
+                : i,
             );
           } else {
-            inv = [...w.inventory, { productId, name: `Product ${productId}`, quantity }];
+            inv = [
+              ...w.inventory,
+              { productId, name: `Product ${productId}`, quantity },
+            ];
           }
-          return { ...w, inventory: inv, totalStock: inv.reduce((sum, item) => sum + item.quantity, 0) };
+          return {
+            ...w,
+            inventory: inv,
+            totalStock: inv.reduce((sum, item) => sum + item.quantity, 0),
+          };
         }
         return w;
       });
@@ -335,17 +389,21 @@ const InventoryManagement = ({ user }) => {
           <div>
             <h2 className="text-2xl font-bold">Logistics & Warehousing</h2>
             <p className="text-sm text-gray-500">
-              Audit in-memory inventories, transfer stock, and analyze comparative BFS/DFS/Dijkstra network routes
+              Audit in-memory inventories, transfer stock, and analyze
+              comparative BFS/DFS/Dijkstra network routes
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={loadData} className="btn-tertiary flex items-center gap-2">
+          <button
+            onClick={loadData}
+            className="btn-tertiary flex items-center gap-2"
+          >
             <RefreshCw className="w-4 h-4" />
             Refresh Hubs
           </button>
-          
+
           {user?.role === "Admin" && (
             <button
               onClick={() => setShowAddWarehouseModal(true)}
@@ -433,15 +491,15 @@ const InventoryManagement = ({ user }) => {
 
       {/* Main Grid: Linked List Inventory vs Logistics Graph Routing */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
         {/* Left: Inventory (Linked List) */}
         <div className="card space-y-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               <Link2 className="w-5 h-5 text-blueFantastic" />
-              <h2 className="text-lg font-bold text-gray-900">Linked-List Stock Directory</h2>
+              <h2 className="text-lg font-bold text-gray-900">
+                Linked-List Stock Directory
+              </h2>
             </div>
-            <span className="chip chip-gray text-xs">Linked List Nodes</span>
           </div>
 
           {inventoryData.length === 0 ? (
@@ -465,13 +523,21 @@ const InventoryManagement = ({ user }) => {
                   </div>
 
                   <div className="flex-grow text-xs font-semibold text-gray-700">
-                    <p className="font-bold text-sm text-gray-900">{item.name}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">Product ID: #{item.productId}</p>
+                    <p className="font-bold text-sm text-gray-900">
+                      {item.name}
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      Product ID: #{item.productId}
+                    </p>
                   </div>
 
                   <div className="text-right font-bold text-xs">
-                    <p className="text-sm font-black text-gray-900">{item.quantity} units</p>
-                    <span className="text-[10px] text-gray-400">Stock Node</span>
+                    <p className="text-sm font-black text-gray-900">
+                      {item.quantity} units
+                    </p>
+                    <span className="text-[10px] text-gray-400">
+                      Stock Node
+                    </span>
                   </div>
                 </div>
               ))}
@@ -485,13 +551,18 @@ const InventoryManagement = ({ user }) => {
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <Navigation className="w-5 h-5 text-blueFantastic" />
-                <h2 className="text-lg font-bold text-gray-900">Network Route Optimization</h2>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Network Route Optimization
+                </h2>
               </div>
               <span className="chip chip-primary text-xs">Logistics Graph</span>
             </div>
 
             {/* Inputs */}
-            <form onSubmit={executeRouting} className="space-y-4 bg-gray-50 p-4 border border-border rounded-12">
+            <form
+              onSubmit={executeRouting}
+              className="space-y-4 bg-gray-50 p-4 border border-border rounded-12"
+            >
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
@@ -529,7 +600,9 @@ const InventoryManagement = ({ user }) => {
 
               <div className="flex items-center justify-between gap-4 pt-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Algorithm:</span>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">
+                    Algorithm:
+                  </span>
                   <select
                     value={selectedAlgo}
                     onChange={(e) => setSelectedAlgo(e.target.value)}
@@ -577,7 +650,9 @@ const InventoryManagement = ({ user }) => {
 
                 <div className="text-xs space-y-1.5 font-medium text-gray-600">
                   <p className="flex items-center gap-1">
-                    <span className="font-bold text-gray-900 uppercase text-[10px]">Optimal Route:</span>
+                    <span className="font-bold text-gray-900 uppercase text-[10px]">
+                      Optimal Route:
+                    </span>
                     <span className="font-mono text-blueFantastic font-black">
                       {routingResults.visited?.join(" → ")}
                     </span>
@@ -635,36 +710,66 @@ const InventoryManagement = ({ user }) => {
                 <div className="grid grid-cols-3 gap-3">
                   {/* Dijkstra */}
                   <div className="p-3 bg-white border border-blueFantastic/20 rounded-12 text-center space-y-1 shadow-sm">
-                    <p className="font-extrabold text-[10px] text-blueFantastic uppercase">Dijkstra</p>
-                    <p className="text-base font-black text-gray-900">{routingResults.dijkstra?.distance} Mi</p>
-                    <p className="text-[9px] text-slate-500 font-bold">Lowest Mileage</p>
+                    <p className="font-extrabold text-[10px] text-blueFantastic uppercase">
+                      Dijkstra
+                    </p>
+                    <p className="text-base font-black text-gray-900">
+                      {routingResults.dijkstra?.distance} Mi
+                    </p>
+                    <p className="text-[9px] text-slate-500 font-bold">
+                      Lowest Mileage
+                    </p>
                   </div>
                   {/* BFS */}
                   <div className="p-3 bg-white border rounded-12 text-center space-y-1 shadow-sm">
-                    <p className="font-extrabold text-[10px] text-gray-500 uppercase">BFS</p>
-                    <p className="text-base font-black text-gray-900">{routingResults.bfs?.distance} Mi</p>
-                    <p className="text-[9px] text-slate-500 font-bold">Shortest Hops</p>
+                    <p className="font-extrabold text-[10px] text-gray-500 uppercase">
+                      BFS
+                    </p>
+                    <p className="text-base font-black text-gray-900">
+                      {routingResults.bfs?.distance} Mi
+                    </p>
+                    <p className="text-[9px] text-slate-500 font-bold">
+                      Shortest Hops
+                    </p>
                   </div>
                   {/* DFS */}
                   <div className="p-3 bg-white border rounded-12 text-center space-y-1 shadow-sm">
-                    <p className="font-extrabold text-[10px] text-gray-500 uppercase">DFS</p>
-                    <p className="text-base font-black text-gray-900">{routingResults.dfs?.distance} Mi</p>
-                    <p className="text-[9px] text-slate-500 font-bold">Depth Traversal</p>
+                    <p className="font-extrabold text-[10px] text-gray-500 uppercase">
+                      DFS
+                    </p>
+                    <p className="text-base font-black text-gray-900">
+                      {routingResults.dfs?.distance} Mi
+                    </p>
+                    <p className="text-[9px] text-slate-500 font-bold">
+                      Depth Traversal
+                    </p>
                   </div>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-12 border border-border text-[11px] font-semibold text-gray-700 space-y-2">
                   <div className="flex gap-2">
-                    <span className="text-blueFantastic uppercase text-[9px] font-black w-14">Dijkstra:</span>
-                    <span className="font-mono text-gray-600 line-clamp-1">{routingResults.dijkstra?.visited?.join(" → ")}</span>
+                    <span className="text-blueFantastic uppercase text-[9px] font-black w-14">
+                      Dijkstra:
+                    </span>
+                    <span className="font-mono text-gray-600 line-clamp-1">
+                      {routingResults.dijkstra?.visited?.join(" → ")}
+                    </span>
                   </div>
                   <div className="flex gap-2">
-                    <span className="text-gray-500 uppercase text-[9px] font-black w-14">BFS:</span>
-                    <span className="font-mono text-gray-600 line-clamp-1">{routingResults.bfs?.visited?.join(" → ")}</span>
+                    <span className="text-gray-500 uppercase text-[9px] font-black w-14">
+                      BFS:
+                    </span>
+                    <span className="font-mono text-gray-600 line-clamp-1">
+                      {routingResults.bfs?.visited?.join(" → ")}
+                    </span>
                   </div>
                   <div className="flex gap-2">
-                    <span className="text-gray-500 uppercase text-[9px] font-black w-14">DFS:</span>
-                    <span className="font-mono text-gray-600 line-clamp-1">{routingResults.dfs?.visited?.join(" → ")}</span>
+                    <span className="text-gray-500 uppercase text-[9px] font-black w-14">
+                      DFS:
+                    </span>
+                    <span className="font-mono text-gray-600 line-clamp-1">
+                      {routingResults.dfs?.visited?.join(" → ")}
+                    </span>
                   </div>
                 </div>
 
@@ -690,8 +795,13 @@ const InventoryManagement = ({ user }) => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="card p-6 w-full max-w-sm animate-scaleIn">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Establish Hub Profile</h3>
-              <button onClick={() => setShowAddWarehouseModal(false)} className="text-gray-400 hover:text-gray-600">
+              <h3 className="text-lg font-bold text-gray-900">
+                Establish Hub Profile
+              </h3>
+              <button
+                onClick={() => setShowAddWarehouseModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -708,7 +818,9 @@ const InventoryManagement = ({ user }) => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="card p-6 w-full max-w-sm animate-scaleIn">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Initiate Cargo Transfer</h3>
+              <h3 className="text-lg font-bold text-gray-900">
+                Initiate Cargo Transfer
+              </h3>
               <button
                 onClick={() => {
                   setShowTransferModal(false);
@@ -718,21 +830,28 @@ const InventoryManagement = ({ user }) => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="p-3 bg-blueFantastic/5 border border-blueFantastic/10 rounded-8 text-xs font-semibold text-gray-600">
                 <p className="font-bold text-blueFantastic text-[10px] uppercase mb-1">
                   Logistics Path (Dijkstra)
                 </p>
-                <p className="font-mono text-gray-900">{routingResults.visited?.join(" → ")}</p>
+                <p className="font-mono text-gray-900">
+                  {routingResults.visited?.join(" → ")}
+                </p>
                 <p className="text-[10px] text-gray-400 mt-1">
-                  Distance: {routingResults.distance} Miles | Transit ETA: {routingResults.distance < 500 ? "4 Hours" : "2 Days"}
+                  Distance: {routingResults.distance} Miles | Transit ETA:{" "}
+                  {routingResults.distance < 500 ? "4 Hours" : "2 Days"}
                 </p>
               </div>
 
               <StockTransferForm
                 fromWarehouse={selectedWarehouse}
-                toWarehouse={routingResults.path ? routingResults.path[routingResults.path.length - 1] : routingTarget}
+                toWarehouse={
+                  routingResults.path
+                    ? routingResults.path[routingResults.path.length - 1]
+                    : routingTarget
+                }
                 inventory={inventoryData}
                 onTransfer={handleStockTransfer}
                 onCancel={() => {
@@ -782,7 +901,9 @@ const AddWarehouseForm = ({ onSubmit, onCancel }) => {
           type="text"
           placeholder="e.g. Seattle"
           value={formData.location}
-          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+          onChange={(e) =>
+            setFormData({ ...formData, location: e.target.value })
+          }
           className="input w-full text-sm"
           required
         />
@@ -795,16 +916,25 @@ const AddWarehouseForm = ({ onSubmit, onCancel }) => {
           type="number"
           placeholder="e.g. 10000"
           value={formData.capacity}
-          onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+          onChange={(e) =>
+            setFormData({ ...formData, capacity: e.target.value })
+          }
           className="input w-full text-sm"
           required
         />
       </div>
       <div className="flex gap-2 pt-4">
-        <button type="submit" className="btn-primary flex-1 py-2 text-sm font-bold">
+        <button
+          type="submit"
+          className="btn-primary flex-1 py-2 text-sm font-bold"
+        >
           Establish Hub
         </button>
-        <button type="button" onClick={onCancel} className="btn-tertiary flex-1 py-2 text-sm font-bold">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="btn-tertiary flex-1 py-2 text-sm font-bold"
+        >
           Cancel
         </button>
       </div>
@@ -812,13 +942,24 @@ const AddWarehouseForm = ({ onSubmit, onCancel }) => {
   );
 };
 
-const StockTransferForm = ({ fromWarehouse, toWarehouse, inventory, onTransfer, onCancel }) => {
+const StockTransferForm = ({
+  fromWarehouse,
+  toWarehouse,
+  inventory,
+  onTransfer,
+  onCancel,
+}) => {
   const [selectedProduct, setSelectedProduct] = useState("");
   const [quantity, setQuantity] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onTransfer(fromWarehouse, parseInt(toWarehouse), parseInt(selectedProduct), parseInt(quantity));
+    onTransfer(
+      fromWarehouse,
+      parseInt(toWarehouse),
+      parseInt(selectedProduct),
+      parseInt(quantity),
+    );
   };
 
   return (
@@ -856,10 +997,17 @@ const StockTransferForm = ({ fromWarehouse, toWarehouse, inventory, onTransfer, 
         />
       </div>
       <div className="flex gap-2 pt-4">
-        <button type="submit" className="btn-primary flex-1 py-2 text-sm font-bold">
+        <button
+          type="submit"
+          className="btn-primary flex-1 py-2 text-sm font-bold"
+        >
           Execute Transfer
         </button>
-        <button type="button" onClick={onCancel} className="btn-tertiary flex-1 py-2 text-sm font-bold">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="btn-tertiary flex-1 py-2 text-sm font-bold"
+        >
           Cancel
         </button>
       </div>

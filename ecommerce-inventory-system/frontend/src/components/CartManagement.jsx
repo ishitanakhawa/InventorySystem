@@ -35,7 +35,13 @@ const CartManagement = () => {
     try {
       const response = await fetch("http://localhost:8080/api/cart");
       const data = await response.json();
-      setCartItems(data);
+      // Prefer backend data, but fall back to localStorage if empty
+      if (data && Array.isArray(data) && data.length > 0) {
+        setCartItems(data);
+      } else {
+        const raw = localStorage.getItem("cartItems");
+        setCartItems(raw ? JSON.parse(raw) : []);
+      }
 
       // Mock queue data (endpoint not implemented yet)
       const mockQueue = [
@@ -75,8 +81,13 @@ const CartManagement = () => {
       setCheckoutQueue(mockQueue);
     } catch (error) {
       console.error("Failed to load cart from backend:", error);
-      // Fallback to mock data
-      setCartItems([]);
+      // Fallback to localStorage cart if present, otherwise empty
+      try {
+        const raw = localStorage.getItem("cartItems");
+        setCartItems(raw ? JSON.parse(raw) : []);
+      } catch (e) {
+        setCartItems([]);
+      }
       setCheckoutQueue([
         {
           id: 1,
@@ -131,8 +142,20 @@ const CartManagement = () => {
       }
     } catch (error) {
       console.error("Failed to add to cart:", error);
-      // Fallback to local update
-      setCartItems([...cartItems, { ...product, quantity: 1 }]);
+      // Fallback to local update and persist to localStorage
+      const existing = [...cartItems];
+      const idx = existing.findIndex((i) => i.id === product.id);
+      if (idx >= 0) {
+        existing[idx].quantity = (existing[idx].quantity || 1) + 1;
+      } else {
+        existing.push({ ...product, quantity: 1 });
+      }
+      setCartItems(existing);
+      try {
+        localStorage.setItem("cartItems", JSON.stringify(existing));
+      } catch (e) {
+        console.warn("Failed to persist cart locally", e);
+      }
     }
   };
 
@@ -148,7 +171,13 @@ const CartManagement = () => {
       console.error("Failed to undo cart action:", error);
       // Fallback to local update
       if (cartItems.length > 0) {
-        setCartItems(cartItems.slice(0, -1));
+        const updated = cartItems.slice(0, -1);
+        setCartItems(updated);
+        try {
+          localStorage.setItem("cartItems", JSON.stringify(updated));
+        } catch (e) {
+          console.warn("Failed to persist cart locally", e);
+        }
       }
     }
   };
@@ -181,6 +210,11 @@ const CartManagement = () => {
     try {
       // Clear endpoint not implemented yet, using local update
       setCartItems([]);
+      try {
+        localStorage.removeItem("cartItems");
+      } catch (e) {
+        console.warn("Failed to remove cart from localStorage", e);
+      }
     } catch (error) {
       console.error("Failed to clear cart:", error);
     }
@@ -193,10 +227,21 @@ const CartManagement = () => {
         : item,
     );
     setCartItems(updatedItems);
+    try {
+      localStorage.setItem("cartItems", JSON.stringify(updatedItems));
+    } catch (e) {
+      console.warn("Failed to persist cart locally", e);
+    }
   };
 
   const removeItem = (id) => {
-    setCartItems(cartItems.filter((i) => i.id !== id));
+    const updated = cartItems.filter((i) => i.id !== id);
+    setCartItems(updated);
+    try {
+      localStorage.setItem("cartItems", JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Failed to persist cart locally", e);
+    }
   };
 
   const handleAddCustomer = async (customerData) => {
@@ -326,14 +371,16 @@ const CartManagement = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Shopping Cart (Stack) */}
-        <div className="card animate-slideUp" style={{ animationDelay: "100ms" }}>
+        <div
+          className="card animate-slideUp"
+          style={{ animationDelay: "100ms" }}
+        >
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-primary/10 rounded-8">
                 <ShoppingCart className="w-5 h-5 text-primary" />
               </div>
               <h3 className="font-semibold">Shopping Cart</h3>
-              <span className="chip chip-gray text-xs">LIFO Stack</span>
             </div>
             <div className="flex gap-2">
               <button
@@ -482,7 +529,10 @@ const CartManagement = () => {
         </div>
 
         {/* Checkout Queue (Priority Queue) */}
-        <div className="card animate-slideUp" style={{ animationDelay: "200ms" }}>
+        <div
+          className="card animate-slideUp"
+          style={{ animationDelay: "200ms" }}
+        >
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-primary/10 rounded-8">
@@ -630,9 +680,11 @@ const CartManagement = () => {
         </div>
       </div>
 
-
       {/* Stock Validation Alert */}
-      <div className="alert alert-warning animate-slideUp" style={{ animationDelay: "400ms" }}>
+      <div
+        className="alert alert-warning animate-slideUp"
+        style={{ animationDelay: "400ms" }}
+      >
         <AlertTriangle className="w-5 h-5" />
         <div className="flex-1">
           <p className="font-medium">Stock Validation</p>

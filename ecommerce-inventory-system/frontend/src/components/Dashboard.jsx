@@ -31,7 +31,9 @@ const Dashboard = () => {
     setLoading(true);
     try {
       // 1. Load products for stats
-      const productsResponse = await fetch("http://localhost:8080/api/products");
+      const productsResponse = await fetch(
+        "http://localhost:8080/api/products",
+      );
       const products = await productsResponse.json();
 
       // 2. Load active checkout queue waitlist size
@@ -52,9 +54,29 @@ const Dashboard = () => {
       } catch (e) {
         console.warn("Alerts fetch failed, defaulting to mock.");
         alertsData = [
-          { id: 6, type: "EXPIRY", productName: "T-Shirt", message: "Perishable threat: product expires soon on 2026-08-01", severity: "CRITICAL" },
-          { id: 2, type: "OVERSTOCK", productName: "Mouse", message: "Storage overcapacity: Stock level is at 200 units (max: 300)", severity: "WARNING" },
-          { id: 1, type: "SPIKE", productName: "Laptop", message: "Demand surge: High sales spike expected due to high rating and popularity (85%)", severity: "INFO" }
+          {
+            id: 6,
+            type: "EXPIRY",
+            productName: "T-Shirt",
+            message: "Perishable threat: product expires soon on 2026-08-01",
+            severity: "CRITICAL",
+          },
+          {
+            id: 2,
+            type: "OVERSTOCK",
+            productName: "Mouse",
+            message:
+              "Storage overcapacity: Stock level is at 200 units (max: 300)",
+            severity: "WARNING",
+          },
+          {
+            id: 1,
+            type: "SPIKE",
+            productName: "Laptop",
+            message:
+              "Demand surge: High sales spike expected due to high rating and popularity (85%)",
+            severity: "INFO",
+          },
         ];
       }
       setAlerts(alertsData);
@@ -81,7 +103,7 @@ const Dashboard = () => {
         {
           label: "Smart Alerts Active",
           value: alertsData.length,
-          change: `${alertsData.filter(a => a.severity === "CRITICAL").length} Critical`,
+          change: `${alertsData.filter((a) => a.severity === "CRITICAL").length} Critical`,
           trend: alertsData.length > 3 ? "up" : "down",
           icon: AlertTriangle,
           color: "bg-warning/10 text-warning",
@@ -101,7 +123,9 @@ const Dashboard = () => {
 
       // 4. Load restock orders (Greedy algorithm)
       try {
-        const restockResponse = await fetch("http://localhost:8080/api/restock?budget=8000");
+        const restockResponse = await fetch(
+          "http://localhost:8080/api/restock?budget=8000",
+        );
         const restockData = await restockResponse.json();
         setRestockOrders(restockData.slice(0, 3));
       } catch (e) {
@@ -110,7 +134,9 @@ const Dashboard = () => {
 
       // 5. Load forecasts (daily, weekly, monthly calculations)
       try {
-        const forecastResponse = await fetch("http://localhost:8080/api/forecast");
+        const forecastResponse = await fetch(
+          "http://localhost:8080/api/forecast",
+        );
         const forecastData = await forecastResponse.json();
         setForecasts(forecastData.slice(0, 4));
       } catch (e) {
@@ -120,15 +146,23 @@ const Dashboard = () => {
           return {
             productId: p.id,
             productName: p.name,
-            dailyForecast: Math.max(2, Math.round(baseSales * p.turnoverRate / 7.0)),
-            weeklyForecast: Math.max(10, Math.round(baseSales * p.turnoverRate)),
-            monthlyForecast: Math.max(40, Math.round(baseSales * p.turnoverRate * 4.3)),
+            dailyForecast: Math.max(
+              2,
+              Math.round((baseSales * p.turnoverRate) / 7.0),
+            ),
+            weeklyForecast: Math.max(
+              10,
+              Math.round(baseSales * p.turnoverRate),
+            ),
+            monthlyForecast: Math.max(
+              40,
+              Math.round(baseSales * p.turnoverRate * 4.3),
+            ),
             accuracy: 85.0 + (p.id % 12),
           };
         });
         setForecasts(fallbackForecasts);
       }
-
     } catch (error) {
       console.error("Failed to load dashboard data from backend:", error);
       // Fallback to offline mock data
@@ -173,22 +207,94 @@ const Dashboard = () => {
       setStats(statsData);
 
       setForecasts([
-        { productId: 1, productName: "Laptop", dailyForecast: 4, weeklyForecast: 28, monthlyForecast: 120, accuracy: 92.5 },
-        { productId: 2, productName: "Mouse", dailyForecast: 15, weeklyForecast: 105, monthlyForecast: 450, accuracy: 89.0 },
-        { productId: 6, productName: "T-Shirt", dailyForecast: 22, weeklyForecast: 154, monthlyForecast: 660, accuracy: 94.2 },
-        { productId: 9, productName: "Sneakers", dailyForecast: 8, weeklyForecast: 56, monthlyForecast: 240, accuracy: 87.8 },
+        {
+          productId: 1,
+          productName: "Laptop",
+          dailyForecast: 4,
+          weeklyForecast: 28,
+          monthlyForecast: 120,
+          accuracy: 92.5,
+        },
+        {
+          productId: 2,
+          productName: "Mouse",
+          dailyForecast: 15,
+          weeklyForecast: 105,
+          monthlyForecast: 450,
+          accuracy: 89.0,
+        },
+        {
+          productId: 6,
+          productName: "T-Shirt",
+          dailyForecast: 22,
+          weeklyForecast: 154,
+          monthlyForecast: 660,
+          accuracy: 94.2,
+        },
+        {
+          productId: 9,
+          productName: "Sneakers",
+          dailyForecast: 8,
+          weeklyForecast: 56,
+          monthlyForecast: 240,
+          accuracy: 87.8,
+        },
       ]);
 
       setRestockOrders([
-        { productId: 1, productName: "Laptop", recommendedSupplier: "Silicon Valley Logistics", unitsToOrder: 50, totalCost: 22500, deliveryDays: 1, priority: 72.5 },
-        { productId: 6, productName: "T-Shirt", recommendedSupplier: "Speedy Apparel Corp", unitsToOrder: 200, totalCost: 1600, deliveryDays: 2, priority: 95.0 },
-        { productId: 9, productName: "Sneakers", recommendedSupplier: "SoleCraft Leather Co", unitsToOrder: 50, totalCost: 2750, deliveryDays: 6, priority: 82.3 },
+        {
+          productId: 1,
+          productName: "Laptop",
+          recommendedSupplier: "Silicon Valley Logistics",
+          unitsToOrder: 50,
+          totalCost: 22500,
+          deliveryDays: 1,
+          priority: 72.5,
+        },
+        {
+          productId: 6,
+          productName: "T-Shirt",
+          recommendedSupplier: "Speedy Apparel Corp",
+          unitsToOrder: 200,
+          totalCost: 1600,
+          deliveryDays: 2,
+          priority: 95.0,
+        },
+        {
+          productId: 9,
+          productName: "Sneakers",
+          recommendedSupplier: "SoleCraft Leather Co",
+          unitsToOrder: 50,
+          totalCost: 2750,
+          deliveryDays: 6,
+          priority: 82.3,
+        },
       ]);
 
       setAlerts([
-        { id: 6, type: "EXPIRY", productName: "T-Shirt", message: "Perishable threat: product expires soon on 2026-08-01", severity: "CRITICAL" },
-        { id: 2, type: "OVERSTOCK", productName: "Mouse", message: "Storage overcapacity: Stock level is at 200 units (max: 300)", severity: "WARNING" },
-        { id: 1, type: "SPIKE", productName: "Laptop", message: "Demand surge: High sales spike expected due to high rating and popularity (85%)", severity: "INFO" }
+        {
+          id: 6,
+          type: "EXPIRY",
+          productName: "T-Shirt",
+          message: "Perishable threat: product expires soon on 2026-08-01",
+          severity: "CRITICAL",
+        },
+        {
+          id: 2,
+          type: "OVERSTOCK",
+          productName: "Mouse",
+          message:
+            "Storage overcapacity: Stock level is at 200 units (max: 300)",
+          severity: "WARNING",
+        },
+        {
+          id: 1,
+          type: "SPIKE",
+          productName: "Laptop",
+          message:
+            "Demand surge: High sales spike expected due to high rating and popularity (85%)",
+          severity: "INFO",
+        },
       ]);
     } finally {
       setLoading(false);
@@ -229,7 +335,8 @@ const Dashboard = () => {
             </h1>
           </div>
           <p className="text-gray-500 ml-12">
-            Real-time inventory insights, greedy restocking schedules, and demand predictions
+            Real-time inventory insights, greedy restocking schedules, and
+            demand predictions
           </p>
         </div>
         <button
@@ -269,7 +376,9 @@ const Dashboard = () => {
                   {stat.change}
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mb-1 font-bold uppercase tracking-wider">{stat.label}</p>
+              <p className="text-xs text-gray-500 mb-1 font-bold uppercase tracking-wider">
+                {stat.label}
+              </p>
               <p className="text-2xl font-black text-gray-900">{stat.value}</p>
             </div>
           );
@@ -278,7 +387,6 @@ const Dashboard = () => {
 
       {/* Forecasting and Restocking Reports */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
         {/* Demand Forecasting - 2 cols wide */}
         <div className="lg:col-span-2 card space-y-6">
           <div className="flex items-center justify-between">
@@ -307,10 +415,17 @@ const Dashboard = () => {
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm font-medium">
                 {forecasts.map((item, index) => (
-                  <tr key={item.productId} className="hover:bg-gray-50/50 transition-colors">
+                  <tr
+                    key={item.productId}
+                    className="hover:bg-gray-50/50 transition-colors"
+                  >
                     <td className="py-3.5">
-                      <p className="font-semibold text-gray-800">{item.productName}</p>
-                      <p className="text-xs text-gray-400 font-normal">Product ID: #{item.productId}</p>
+                      <p className="font-semibold text-gray-800">
+                        {item.productName}
+                      </p>
+                      <p className="text-xs text-gray-400 font-normal">
+                        Product ID: #{item.productId}
+                      </p>
                     </td>
                     <td className="py-3.5 text-center text-gray-700">
                       <span className="bg-gray-100 px-2 py-0.5 rounded-4 text-xs font-bold">
@@ -327,11 +442,13 @@ const Dashboard = () => {
                     </td>
                     <td className="py-3.5 text-right">
                       <div className="inline-flex items-center gap-2">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                          item.accuracy >= 90 
-                            ? "bg-success/10 text-success border border-success/20" 
-                            : "bg-indigo-50 text-indigo-700 border border-indigo-100"
-                        }`}>
+                        <span
+                          className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            item.accuracy >= 90
+                              ? "bg-success/10 text-success border border-success/20"
+                              : "bg-indigo-50 text-indigo-700 border border-indigo-100"
+                          }`}
+                        >
                           {item.accuracy.toFixed(1)}% Acc
                         </span>
                       </div>
@@ -353,14 +470,17 @@ const Dashboard = () => {
                 </div>
                 <h2 className="text-lg font-bold">Restocking Order Plan</h2>
               </div>
-              <span className="chip chip-primary text-xs">Greedy Budget</span>
             </div>
 
             <div className="space-y-3">
               {restockOrders.length === 0 ? (
                 <div className="p-8 text-center bg-gray-50 border border-dashed rounded-12">
-                  <p className="text-xs text-gray-500 font-medium">All warehouse hubs synced</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Stock levels are fully healthy</p>
+                  <p className="text-xs text-gray-500 font-medium">
+                    All warehouse hubs synced
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Stock levels are fully healthy
+                  </p>
                 </div>
               ) : (
                 restockOrders.map((order) => (
@@ -370,8 +490,12 @@ const Dashboard = () => {
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-bold text-xs text-gray-800">{order.productName}</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">Supplier: {order.recommendedSupplier}</p>
+                        <p className="font-bold text-xs text-gray-800">
+                          {order.productName}
+                        </p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          Supplier: {order.recommendedSupplier}
+                        </p>
                       </div>
                       <span className="text-xs font-extrabold text-blueFantastic">
                         ₹{order.totalCost.toFixed(2)}
@@ -392,7 +516,9 @@ const Dashboard = () => {
 
           <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-gray-500">
             <span>Budget Ceiling: ₹8,000.00</span>
-            <span className="text-blueFantastic font-black">Turnover Priority Ratios</span>
+            <span className="text-blueFantastic font-black">
+              Turnover Priority Ratios
+            </span>
           </div>
         </div>
       </div>
@@ -409,20 +535,22 @@ const Dashboard = () => {
               {alerts.length} Warnings Active
             </span>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {alerts.map((alert, index) => {
               const isCritical = alert.severity === "CRITICAL";
               const isWarning = alert.severity === "WARNING";
-              
-              let alertStyle = "border-indigo-100 bg-indigo-50/50 text-indigo-900";
+
+              let alertStyle =
+                "border-indigo-100 bg-indigo-50/50 text-indigo-900";
               let badgeStyle = "bg-indigo-100 text-indigo-700";
-              
+
               if (isCritical) {
                 alertStyle = "border-red-200 bg-red-50/40 text-red-950";
                 badgeStyle = "bg-error text-white";
               } else if (isWarning) {
-                alertStyle = "border-yellow-200 bg-yellow-50/40 text-yellow-950";
+                alertStyle =
+                  "border-yellow-200 bg-yellow-50/40 text-yellow-950";
                 badgeStyle = "bg-warning text-gray-900";
               }
 
@@ -436,7 +564,9 @@ const Dashboard = () => {
                       <span className="text-xs font-black uppercase tracking-widest font-mono">
                         {alert.type}
                       </span>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${badgeStyle}`}>
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full ${badgeStyle}`}
+                      >
                         {alert.severity}
                       </span>
                     </div>
