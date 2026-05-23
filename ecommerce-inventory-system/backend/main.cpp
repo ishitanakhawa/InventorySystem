@@ -562,10 +562,21 @@ struct Forecast {
     int weeklyForecast;
     int monthlyForecast;
     double accuracy;
+    double seasonFactor;
 };
 
 vector<Forecast> calculateForecasts() {
     vector<Forecast> res;
+    time_t t = time(0);
+    tm* now = localtime(&t);
+    int month = now->tm_mon + 1;
+    double seasonFactor = 1.0;
+    if (month >= 10 && month <= 12) {
+        seasonFactor = 1.25;
+    } else if (month >= 1 && month <= 3) {
+        seasonFactor = 0.85;
+    }
+
     for (auto p : catalog) {
         Forecast f;
         f.productId = p->id;
@@ -573,12 +584,17 @@ vector<Forecast> calculateForecasts() {
         
         // Base prediction model around popularity score and recent turnover rate
         int baseSales = 10 + (p->popularity / 3);
-        f.dailyForecast = max(2, (int)(baseSales * p->turnoverRate / 7.0));
-        f.weeklyForecast = max(10, (int)(baseSales * p->turnoverRate));
-        f.monthlyForecast = max(40, (int)(baseSales * p->turnoverRate * 4.3));
+        int daily = max(2, (int)(baseSales * p->turnoverRate / 7.0));
+        int weekly = max(10, (int)(baseSales * p->turnoverRate));
+        int monthly = max(40, (int)(baseSales * p->turnoverRate * 4.3));
+
+        f.dailyForecast = (int)(daily * seasonFactor);
+        f.weeklyForecast = (int)(weekly * seasonFactor);
+        f.monthlyForecast = (int)(monthly * seasonFactor);
         
         // Simulated accuracy metric
         f.accuracy = 85.0 + (p->id % 12);
+        f.seasonFactor = seasonFactor;
         res.push_back(f);
     }
     return res;
@@ -1172,27 +1188,39 @@ void handleHttpClient(int client_fd) {
         Product* p = searchById(productCatalogBST, productId);
 
         if (p) {
-            // Save state to Undo stack
-            cartUndoStack.push(activeCart);
-            // Clear redo stack
-            while (!cartRedoStack.empty()) cartRedoStack.pop();
-
-            // Append or update cart item
-            bool found = false;
+            int alreadyInCart = 0;
             for (auto item : activeCart) {
                 if (item->productId == productId) {
-                    item->quantity += quantity;
-                    found = true;
-                    break;
+                    alreadyInCart += item->quantity;
                 }
             }
 
-            if (!found) {
-                string image = (p->category == "Electronics") ? "💻" : (p->category == "Clothing") ? "👕" : "👟";
-                activeCart.push_back(new CartItem(p->id, p->name, p->category, p->price, quantity, p->stock, image));
-            }
+            if (alreadyInCart + quantity > p->stock) {
+                int x = p->stock - alreadyInCart;
+                responseBody = "{\"success\":false, \"message\":\"Insufficient stock! Only " + to_string(x) + " units available.\"}";
+            } else {
+                // Save state to Undo stack
+                cartUndoStack.push(activeCart);
+                // Clear redo stack
+                while (!cartRedoStack.empty()) cartRedoStack.pop();
 
-            responseBody = "{\"success\":true, \"message\":\"Item added to stack!\"}";
+                // Append or update cart item
+                bool found = false;
+                for (auto item : activeCart) {
+                    if (item->productId == productId) {
+                        item->quantity += quantity;
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    string image = (p->category == "Electronics") ? "💻" : (p->category == "Clothing") ? "👕" : "👟";
+                    activeCart.push_back(new CartItem(p->id, p->name, p->category, p->price, quantity, p->stock, image));
+                }
+
+                responseBody = "{\"success\":true, \"message\":\"Item added to stack!\"}";
+            }
         } else {
             responseBody = "{\"success\":false, \"message\":\"Product not found!\"}";
         }
@@ -1482,7 +1510,8 @@ void handleHttpClient(int client_fd) {
                             "\"dailyForecast\":" + to_string(f.dailyForecast) + ","
                             "\"weeklyForecast\":" + to_string(f.weeklyForecast) + ","
                             "\"monthlyForecast\":" + to_string(f.monthlyForecast) + ","
-                            "\"accuracy\":" + to_string(f.accuracy) +
+                            "\"accuracy\":" + to_string(f.accuracy) + ","
+                            "\"seasonFactor\":" + to_string(f.seasonFactor) +
                             "}";
             if (i < forecasts.size() - 1) responseBody += ",";
         }
