@@ -169,15 +169,15 @@ export default function DynamicPricing({ user }) {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full table-auto">
+              <table className="w-full border-collapse">
                 <thead>
-                  <tr className="text-left text-sm text-gray-500 border-b border-border">
-                    <th className="py-3">Product</th>
-                    <th className="py-3">Price</th>
-                    <th className="py-3">Recommended</th>
-                    <th className="py-3">Stock</th>
-                    <th className="py-3">7d Sales</th>
-                    <th className="py-3">Action</th>
+                  <tr className="text-left text-sm text-gray-500 border-b border-border font-bold uppercase tracking-wider">
+                    <th className="py-3 px-4">Product</th>
+                    <th className="py-3 px-4 text-center">Price</th>
+                    <th className="py-3 px-4 text-center">Recommended</th>
+                    <th className="py-3 px-4 text-center">Stock</th>
+                    <th className="py-3 px-4 text-center">7d Sales</th>
+                    <th className="py-3 px-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -185,40 +185,46 @@ export default function DynamicPricing({ user }) {
                     <tr
                       key={p.id}
                       onClick={() => setSelected(p)}
-                      className={`align-top border-b last:border-b-0 cursor-pointer hover:bg-palladian/20 ${selected?.id === p.id ? "bg-palladian/30" : ""}`}
+                      className={`border-b last:border-b-0 cursor-pointer hover:bg-palladian/20 transition-colors ${selected?.id === p.id ? "bg-palladian/30" : ""}`}
                     >
-                      <td className="py-4">
+                      <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold flex-shrink-0">
                             {p.name
                               .split(" ")
                               .map((s) => s[0])
                               .join("")
                               .slice(0, 2)}
                           </div>
-                          <div>
-                            <div className="font-medium">{p.name}</div>
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900">{p.name}</div>
                             <div className="text-xs text-gray-500">
                               Product ID: #{p.id}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="py-4">₹{p.price.toLocaleString()}</td>
-                      <td className="py-4">
+                      <td className="py-4 px-4 text-center text-gray-700 font-medium">
+                        ₹{p.price.toLocaleString()}
+                      </td>
+                      <td className="py-4 px-4 text-center text-gray-700 font-medium">
                         ₹{p.recommended.toLocaleString()}
                       </td>
-                      <td className="py-4">{p.stock}</td>
-                      <td className="py-4">{p.sales7d}</td>
-                      <td className="py-4">
-                        <div className="flex gap-2">
-                          <button className="btn-primary text-xs flex items-center gap-2">
-                            <Check className="w-3 h-3" />
-                            Apply
+                      <td className="py-4 px-4 text-center text-gray-700 font-medium">
+                        {p.stock}
+                      </td>
+                      <td className="py-4 px-4 text-center text-gray-700 font-medium">
+                        {p.sales7d}
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex gap-2 justify-end flex-wrap">
+                          <button onClick={(e) => e.stopPropagation()} className="btn-primary text-xs flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap">
+                            <Check className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Apply</span>
                           </button>
-                          <button className="btn-tertiary text-xs flex items-center gap-2">
-                            <Eye className="w-3 h-3" />
-                            Preview
+                          <button onClick={(e) => e.stopPropagation()} className="btn-tertiary text-xs flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap">
+                            <Eye className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Preview</span>
                           </button>
                         </div>
                       </td>
