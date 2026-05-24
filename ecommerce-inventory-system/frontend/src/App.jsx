@@ -247,7 +247,6 @@ function App() {
                 element={<CustomerModule user={user} />}
               />
               <Route path="/pricing" element={<DynamicPricing user={user} />} />
-              <Route
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
