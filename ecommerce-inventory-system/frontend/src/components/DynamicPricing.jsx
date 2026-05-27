@@ -177,7 +177,6 @@ export default function DynamicPricing({ user }) {
                     <th className="py-3 px-4 text-center">Recommended</th>
                     <th className="py-3 px-4 text-center">Stock</th>
                     <th className="py-3 px-4 text-center">7d Sales</th>
-                    <th className="py-3 px-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -197,7 +196,9 @@ export default function DynamicPricing({ user }) {
                               .slice(0, 2)}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-medium text-gray-900">{p.name}</div>
+                            <div className="font-medium text-gray-900">
+                              {p.name}
+                            </div>
                             <div className="text-xs text-gray-500">
                               Product ID: #{p.id}
                             </div>
@@ -216,18 +217,6 @@ export default function DynamicPricing({ user }) {
                       <td className="py-4 px-4 text-center text-gray-700 font-medium">
                         {p.sales7d}
                       </td>
-                      <td className="py-4 px-4">
-                        <div className="flex gap-2 justify-end flex-wrap">
-                          <button onClick={(e) => e.stopPropagation()} className="btn-primary text-xs flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap">
-                            <Check className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Apply</span>
-                          </button>
-                          <button onClick={(e) => e.stopPropagation()} className="btn-tertiary text-xs flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap">
-                            <Eye className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Preview</span>
-                          </button>
-                        </div>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -235,27 +224,7 @@ export default function DynamicPricing({ user }) {
             </div>
           </div>
 
-          <aside className="lg:col-span-4 space-y-4">
-            <div className="card sticky top-24">
-              <h3 className="text-sm text-gray-500 uppercase mb-3">
-                Sales Trend
-              </h3>
-              <p className="text-xs text-gray-500 mb-3">
-                Last 7 days aggregate sales
-              </p>
-              <div className="w-full h-20">
-                {/* Show selected product sparkline if present */}
-                <Sparkline
-                  data={
-                    selected
-                      ? expandSales(selected.sales7d)
-                      : sampleProducts.map((p) => p.sales7d)
-                  }
-                  color="#2C3B4D"
-                />
-              </div>
-            </div>
-
+          <aside className="lg:col-span-4 space-y-6">
             <div className="card">
               <h3 className="text-sm text-gray-500 uppercase mb-3">
                 Price Distribution

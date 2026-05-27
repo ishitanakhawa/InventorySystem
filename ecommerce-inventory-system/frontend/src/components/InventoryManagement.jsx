@@ -132,15 +132,6 @@ const InventoryManagement = ({ user }) => {
             Refresh Hubs
           </button>
 
-          {user?.role === "Admin" && (
-            <button
-              onClick={() => setShowAddWarehouseModal(true)}
-              className="btn-primary flex items-center gap-2 font-semibold"
-            >
-              <Plus className="w-4 h-4" />
-              Establish Hub
-            </button>
-          )}
         </div>
       </div>
 
