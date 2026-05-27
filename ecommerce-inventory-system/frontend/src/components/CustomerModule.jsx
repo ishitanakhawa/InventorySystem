@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { customersDb } from "../lib/mockDb";
 import {
   Users,
   UserPlus,
@@ -38,56 +39,13 @@ const CustomerModule = ({ user }) => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("http://localhost:8080/api/customers");
-      const data = await response.json();
+      const data = await customersDb.getAll();
       setCustomers(data);
       if (data.length > 0 && !selectedCustomerId) {
         setSelectedCustomerId(data[0].id);
       }
     } catch (err) {
-      console.warn("Backend unavailable. Loading local fallback customer database.");
-      // Fail-safe mock data
-      const mockCustomers = [
-        {
-          id: 1,
-          name: "John Doe",
-          isLoyaltyMember: true,
-          registrationDate: "2026-02-14",
-          purchaseHistory: [
-            "Invoice #8241 - 1x Laptop (₹999.99) 2x Mouse (₹29.99) | Subtotal: ₹1059.97 | Discount: ₹105.99 | Tax: ₹76.32 | Total Paid: ₹1030.30",
-            "Invoice #4129 - 1x Headphone (₹149.99) | Subtotal: ₹149.99 | Discount: ₹15.00 | Tax: ₹10.80 | Total Paid: ₹145.79",
-          ],
-        },
-        {
-          id: 2,
-          name: "Jane Smith",
-          isLoyaltyMember: false,
-          registrationDate: "2026-04-01",
-          purchaseHistory: [
-            "Invoice #3928 - 1x Sneakers (₹129.99) | Subtotal: ₹129.99 | Discount: ₹0.00 | Tax: ₹10.40 | Total Paid: ₹140.39",
-          ],
-        },
-        {
-          id: 3,
-          name: "Bob Wilson",
-          isLoyaltyMember: true,
-          registrationDate: "2026-05-10",
-          purchaseHistory: [
-            "Invoice #1209 - 3x T-Shirt (₹19.99) | Subtotal: ₹59.97 | Discount: ₹6.00 | Tax: ₹4.32 | Total Paid: ₹58.29",
-          ],
-        },
-        {
-          id: 4,
-          name: "Alice Brown",
-          isLoyaltyMember: false,
-          registrationDate: "2026-05-20",
-          purchaseHistory: [],
-        },
-      ];
-      setCustomers(mockCustomers);
-      if (!selectedCustomerId) {
-        setSelectedCustomerId(mockCustomers[0].id);
-      }
+      setError("Failed to load customers.");
     } finally {
       setLoading(false);
     }
@@ -108,39 +66,15 @@ const CustomerModule = ({ user }) => {
     setSuccess("");
 
     try {
-      const response = await fetch("http://localhost:8080/api/customers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setSuccess(`Customer "${formData.name}" registered successfully!`);
-        setFormData({ name: "", isLoyaltyMember: false });
-        await loadCustomers();
-      } else {
-        setError(data.message || "Failed to register customer.");
-      }
-    } catch (err) {
-      console.warn("Backend offline. Simulating local customer registration.");
-      const newId = customers.length ? Math.max(...customers.map((c) => c.id)) + 1 : 1;
-      const today = new Date().toISOString().split("T")[0];
-      const newCustomer = {
-        id: newId,
-        name: formData.name,
-        isLoyaltyMember: formData.isLoyaltyMember,
-        registrationDate: today,
-        purchaseHistory: [],
-      };
-      const updatedCustomers = [...customers, newCustomer];
-      setCustomers(updatedCustomers);
-      setSelectedCustomerId(newId);
-      setSuccess(`Customer "${formData.name}" registered locally!`);
+      const newCustomer = await customersDb.create(formData);
+      setSuccess(`Customer "${formData.name}" registered successfully!`);
       setFormData({ name: "", isLoyaltyMember: false });
+      await loadCustomers();
+      setSelectedCustomerId(newCustomer.id);
+    } catch (err) {
+      setError("Failed to register customer.");
     } finally {
       setFormLoading(false);
-      // Auto clear alerts after 4s
       setTimeout(() => {
         setSuccess("");
         setError("");

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { productsDb, cartDb } from "../lib/mockDb";
 import {
   Search,
   Package,
@@ -59,139 +60,11 @@ const ProductCatalog = ({ user }) => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("http://localhost:8080/api/products");
-      const data = await response.json();
+      const data = await productsDb.getAll();
       setProducts(data);
       applyFilters(data);
     } catch (error) {
-      console.warn(
-        "Failed to load products from backend. Using offline mock catalog.",
-      );
-      // Fallback to robust mock data with basePrice and price for dynamic pricing demo
-      const mockProducts = [
-        {
-          id: 1,
-          name: "Laptop",
-          category: "Electronics",
-          basePrice: 999.99,
-          price: 1099.99,
-          popularity: 85,
-          stock: 50,
-          maxStock: 150,
-          rating: 4.8,
-          turnoverRate: 0.65,
-        },
-        {
-          id: 2,
-          name: "Mouse",
-          category: "Electronics",
-          basePrice: 29.99,
-          price: 32.99,
-          popularity: 90,
-          stock: 200,
-          maxStock: 300,
-          rating: 4.3,
-          turnoverRate: 0.85,
-        },
-        {
-          id: 3,
-          name: "Keyboard",
-          category: "Electronics",
-          basePrice: 79.99,
-          price: 87.99,
-          popularity: 88,
-          stock: 150,
-          maxStock: 250,
-          rating: 4.5,
-          turnoverRate: 0.72,
-        },
-        {
-          id: 4,
-          name: "Monitor",
-          category: "Electronics",
-          basePrice: 349.99,
-          price: 349.99,
-          popularity: 75,
-          stock: 80,
-          maxStock: 200,
-          rating: 4.6,
-          turnoverRate: 0.55,
-        },
-        {
-          id: 5,
-          name: "Headphones",
-          category: "Electronics",
-          basePrice: 149.99,
-          price: 164.99,
-          popularity: 82,
-          stock: 120,
-          maxStock: 200,
-          rating: 4.2,
-          turnoverRate: 0.6,
-        },
-        {
-          id: 6,
-          name: "T-Shirt",
-          category: "Clothing",
-          basePrice: 19.99,
-          price: 11.99,
-          popularity: 95,
-          stock: 300,
-          maxStock: 500,
-          rating: 4.7,
-          turnoverRate: 0.95,
-        },
-        {
-          id: 7,
-          name: "Jeans",
-          category: "Clothing",
-          basePrice: 59.99,
-          price: 65.99,
-          popularity: 80,
-          stock: 180,
-          maxStock: 250,
-          rating: 4.1,
-          turnoverRate: 0.7,
-        },
-        {
-          id: 8,
-          name: "Jacket",
-          category: "Clothing",
-          basePrice: 89.99,
-          price: 76.49,
-          popularity: 50,
-          stock: 100,
-          maxStock: 150,
-          rating: 4.0,
-          turnoverRate: 0.45,
-        },
-        {
-          id: 9,
-          name: "Sneakers",
-          category: "Footwear",
-          basePrice: 129.99,
-          price: 142.99,
-          popularity: 88,
-          stock: 150,
-          maxStock: 200,
-          rating: 4.9,
-          turnoverRate: 0.8,
-        },
-        {
-          id: 10,
-          name: "Boots",
-          category: "Footwear",
-          basePrice: 159.99,
-          price: 135.99,
-          popularity: 45,
-          stock: 90,
-          maxStock: 120,
-          rating: 4.4,
-          turnoverRate: 0.4,
-        },
-      ];
-      setProducts(mockProducts);
-      applyFilters(mockProducts);
+      console.error("Failed to load products:", error);
     } finally {
       setLoading(false);
     }
@@ -262,39 +135,11 @@ const ProductCatalog = ({ user }) => {
     }
 
     try {
-      const response = await fetch("http://localhost:8080/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...productData,
-          popularity: 50,
-          stock: productData.stock || 0,
-          maxStock: productData.maxStock || 100,
-        }),
-      });
-      if (response.ok) {
-        loadProducts();
-        setShowAddModal(false);
-      }
-    } catch (error) {
-      console.warn("Backend offline. Simulating product addition locally.");
-      const newId = products.length
-        ? Math.max(...products.map((p) => p.id)) + 1
-        : 1;
-      const newProduct = {
-        id: newId,
-        name: productData.name,
-        category: productData.category,
-        basePrice: productData.price,
-        price: productData.price,
-        popularity: 50,
-        stock: productData.stock || 0,
-        maxStock: productData.maxStock || 100,
-        rating: 4.0,
-        turnoverRate: 0.5,
-      };
-      setProducts([...products, newProduct]);
+      await productsDb.create(productData);
+      loadProducts();
       setShowAddModal(false);
+    } catch (error) {
+      setError("Failed to add product.");
     }
   };
 
@@ -305,21 +150,11 @@ const ProductCatalog = ({ user }) => {
     }
 
     try {
-      const response = await fetch("http://localhost:8080/api/products", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, ...updates }),
-      });
-      if (response.ok) {
-        loadProducts();
-        setEditingProduct(null);
-      }
-    } catch (error) {
-      console.warn("Backend offline. Simulating product update locally.");
-      setProducts(
-        products.map((p) => (p.id === id ? { ...p, ...updates } : p)),
-      );
+      await productsDb.update(id, updates);
+      loadProducts();
       setEditingProduct(null);
+    } catch (error) {
+      setError("Failed to update product.");
     }
   };
 
@@ -337,71 +172,22 @@ const ProductCatalog = ({ user }) => {
       return;
 
     try {
-      const response = await fetch(
-        `http://localhost:8080/api/products?id=${id}`,
-        {
-          method: "DELETE",
-        },
-      );
-      if (response.ok) {
-        loadProducts();
-      }
+      await productsDb.delete(id);
+      loadProducts();
     } catch (error) {
-      console.warn("Backend offline. Simulating product deletion locally.");
-      setProducts(products.filter((p) => p.id !== id));
+      setError("Failed to delete product.");
     }
   };
 
   const handleAddToCart = async (product) => {
     try {
-      const response = await fetch("http://localhost:8080/api/cart/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: product.id, quantity: 1 }),
+      await cartDb.add(product.id, 1);
+      setCartMessage({
+        text: `${product.name} added to cart`,
+        productId: product.id,
       });
-      if (response.ok) {
-        setCartMessage({
-          text: `${product.name} added to cart`,
-          productId: product.id,
-        });
-      } else {
-        throw new Error("non-OK response");
-      }
     } catch (err) {
-      console.warn(
-        "Failed to add to cart via backend, falling back locally.",
-        err,
-      );
-      // Persist cart locally so CartManagement can pick it up
-      try {
-        const raw = localStorage.getItem("cartItems");
-        const existing = raw ? JSON.parse(raw) : [];
-        const idx = existing.findIndex((i) => i.id === product.id);
-        if (idx >= 0) {
-          existing[idx].quantity = (existing[idx].quantity || 1) + 1;
-        } else {
-          existing.push({
-            id: product.id,
-            name: product.name,
-            price: product.price,
-            quantity: 1,
-            image: productImages[product.name] || "📦",
-            category: product.category,
-            stock: product.stock,
-          });
-        }
-        localStorage.setItem("cartItems", JSON.stringify(existing));
-        setCartMessage({
-          text: `${product.name} added to local cart`,
-          productId: product.id,
-        });
-      } catch (e) {
-        console.warn("Failed to persist cart locally", e);
-        setCartMessage({
-          text: `${product.name} added to cart`,
-          productId: product.id,
-        });
-      }
+      setError("Failed to add to cart.");
     }
     setTimeout(() => setCartMessage({ text: "", productId: null }), 2200);
   };

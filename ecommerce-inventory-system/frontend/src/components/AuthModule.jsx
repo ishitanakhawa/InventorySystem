@@ -12,32 +12,18 @@ const AuthModule = ({ user, onLogin, onLogout }) => {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:8080/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      // Simulate network delay for realism
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
-      const data = await response.json();
-      if (data.success) {
-        onLogin({
-          username: data.username,
-          role: data.role,
-          token: data.token,
-        });
-      } else {
-        setError(data.message || "Invalid credentials.");
-      }
-    } catch (err) {
-      console.warn("Backend unavailable. Performing local fallback login.");
-      // Fail-safe offline fallback
       if (formData.username === "admin" && formData.password === "admin") {
-        onLogin({ username: "admin", role: "Admin", token: "fallback-admin" });
+        onLogin({ username: "admin", role: "Admin", token: "mock-admin-token" });
       } else if (formData.username === "employee" && formData.password === "employee") {
-        onLogin({ username: "employee", role: "Employee", token: "fallback-employee" });
+        onLogin({ username: "employee", role: "Employee", token: "mock-employee-token" });
       } else {
         setError("Invalid username or password. (Use admin/admin or employee/employee)");
       }
+    } catch (err) {
+      setError("An unexpected error occurred during authentication.");
     } finally {
       setLoading(false);
     }

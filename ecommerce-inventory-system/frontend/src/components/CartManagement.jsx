@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { cartDb } from "../lib/mockDb";
 import {
   ShoppingCart,
   Undo,
@@ -33,95 +34,12 @@ const CartManagement = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:8080/api/cart");
-      const data = await response.json();
-      // Prefer backend data, but fall back to localStorage if empty
-      if (data && Array.isArray(data) && data.length > 0) {
-        setCartItems(data);
-      } else {
-        const raw = localStorage.getItem("cartItems");
-        setCartItems(raw ? JSON.parse(raw) : []);
-      }
-
-      // Mock queue data (endpoint not implemented yet)
-      const mockQueue = [
-        {
-          id: 1,
-          name: "John Doe",
-          isLoyaltyMember: true,
-          cartTotal: 1029.97,
-          items: 3,
-          waitTime: "2 min",
-        },
-        {
-          id: 2,
-          name: "Jane Smith",
-          isLoyaltyMember: false,
-          cartTotal: 159.99,
-          items: 2,
-          waitTime: "5 min",
-        },
-        {
-          id: 3,
-          name: "Bob Wilson",
-          isLoyaltyMember: true,
-          cartTotal: 89.99,
-          items: 1,
-          waitTime: "8 min",
-        },
-        {
-          id: 4,
-          name: "Alice Brown",
-          isLoyaltyMember: false,
-          cartTotal: 299.99,
-          items: 4,
-          waitTime: "12 min",
-        },
-      ];
-      setCheckoutQueue(mockQueue);
+      const items = await cartDb.get();
+      setCartItems(items);
+      const queue = await cartDb.getQueue();
+      setCheckoutQueue(queue);
     } catch (error) {
-      console.error("Failed to load cart from backend:", error);
-      // Fallback to localStorage cart if present, otherwise empty
-      try {
-        const raw = localStorage.getItem("cartItems");
-        setCartItems(raw ? JSON.parse(raw) : []);
-      } catch (e) {
-        setCartItems([]);
-      }
-      setCheckoutQueue([
-        {
-          id: 1,
-          name: "John Doe",
-          isLoyaltyMember: true,
-          cartTotal: 1029.97,
-          items: 3,
-          waitTime: "2 min",
-        },
-        {
-          id: 2,
-          name: "Jane Smith",
-          isLoyaltyMember: false,
-          cartTotal: 159.99,
-          items: 2,
-          waitTime: "5 min",
-        },
-        {
-          id: 3,
-          name: "Bob Wilson",
-          isLoyaltyMember: true,
-          cartTotal: 89.99,
-          items: 1,
-          waitTime: "8 min",
-        },
-        {
-          id: 4,
-          name: "Alice Brown",
-          isLoyaltyMember: false,
-          cartTotal: 299.99,
-          items: 4,
-          waitTime: "12 min",
-        },
-      ]);
+      console.error("Failed to load cart/queue:", error);
     } finally {
       setLoading(false);
     }
@@ -129,92 +47,38 @@ const CartManagement = () => {
 
   const handleAddToCart = async (product) => {
     try {
-      const response = await fetch("http://localhost:8080/api/cart/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: product.id,
-          quantity: 1,
-        }),
-      });
-      if (response.ok) {
-        loadData();
-      }
+      await cartDb.add(product.id, 1);
+      loadData();
     } catch (error) {
       console.error("Failed to add to cart:", error);
-      // Fallback to local update and persist to localStorage
-      const existing = [...cartItems];
-      const idx = existing.findIndex((i) => i.id === product.id);
-      if (idx >= 0) {
-        existing[idx].quantity = (existing[idx].quantity || 1) + 1;
-      } else {
-        existing.push({ ...product, quantity: 1 });
-      }
-      setCartItems(existing);
-      try {
-        localStorage.setItem("cartItems", JSON.stringify(existing));
-      } catch (e) {
-        console.warn("Failed to persist cart locally", e);
-      }
     }
   };
 
   const handleUndo = async () => {
     try {
-      const response = await fetch("http://localhost:8080/api/cart/undo", {
-        method: "POST",
-      });
-      if (response.ok) {
-        loadData();
-      }
+      await cartDb.undo();
+      loadData();
     } catch (error) {
       console.error("Failed to undo cart action:", error);
-      // Fallback to local update
-      if (cartItems.length > 0) {
-        const updated = cartItems.slice(0, -1);
-        setCartItems(updated);
-        try {
-          localStorage.setItem("cartItems", JSON.stringify(updated));
-        } catch (e) {
-          console.warn("Failed to persist cart locally", e);
-        }
-      }
     }
   };
 
   const handleCheckout = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:8080/api/checkout/dequeue",
-        {
-          method: "POST",
-        },
-      );
-      if (response.ok) {
-        const data = await response.json();
-        alert(`Processing checkout for ${data.name}`);
+      const served = await cartDb.dequeue();
+      if (served) {
+        alert(`Processing checkout for ${served.name}`);
         loadData();
       }
     } catch (error) {
       console.error("Failed to process checkout:", error);
-      // Fallback to local update
-      if (checkoutQueue.length > 0) {
-        const nextCustomer = checkoutQueue[0];
-        alert(`Processing checkout for ${nextCustomer.name}`);
-        setCheckoutQueue(checkoutQueue.slice(1));
-      }
     }
   };
 
   const clearCart = async () => {
     try {
-      // Clear endpoint not implemented yet, using local update
+      await cartDb.clear();
       setCartItems([]);
-      try {
-        localStorage.removeItem("cartItems");
-      } catch (e) {
-        console.warn("Failed to remove cart from localStorage", e);
-      }
     } catch (error) {
       console.error("Failed to clear cart:", error);
     }
@@ -245,16 +109,28 @@ const CartManagement = () => {
   };
 
   const handleAddCustomer = async (customerData) => {
-    // TODO: Call C++ backend API (Priority Queue)
-    const newCustomer = {
-      id: Date.now(),
-      ...customerData,
-      cartTotal: 0,
-      items: 0,
-      waitTime: "0 min",
-    };
-    setCheckoutQueue([...checkoutQueue, newCustomer]);
-    setShowAddCustomerModal(false);
+    try {
+      // Priority Queue enqueue with loyalty member prioritization
+      const total = cartTotal > 0 ? (cartTotal * 1.08) : Number(Math.floor(100 + Math.random() * 800));
+      const itemsCount = totalItems > 0 ? totalItems : Number(Math.floor(1 + Math.random() * 4));
+      
+      const newQueue = await cartDb.enqueue({
+        name: customerData.name,
+        isLoyaltyMember: customerData.isLoyaltyMember,
+        cartTotal: total,
+        items: itemsCount,
+      });
+      setCheckoutQueue(newQueue);
+      setShowAddCustomerModal(false);
+      
+      // If we checked out our own cart, clear it!
+      if (cartItems.length > 0) {
+        await cartDb.clear();
+        setCartItems([]);
+      }
+    } catch (error) {
+      console.error("Failed to enqueue customer:", error);
+    }
   };
 
   const cartTotal = cartItems.reduce(

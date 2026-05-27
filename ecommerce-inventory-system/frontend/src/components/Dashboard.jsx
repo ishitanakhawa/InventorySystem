@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { productsDb, cartDb, diagnosticDb } from "../lib/mockDb";
 import {
   Package,
   TrendingUp,
@@ -30,55 +31,15 @@ const Dashboard = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 1. Load products for stats
-      const productsResponse = await fetch(
-        "http://localhost:8080/api/products",
-      );
-      const products = await productsResponse.json();
+      // 1. Load products
+      const products = await productsDb.getAll();
 
-      // 2. Load active checkout queue waitlist size
-      let queueSize = 3;
-      try {
-        const qRes = await fetch("http://localhost:8080/api/checkout/queue");
-        const qData = await qRes.json();
-        queueSize = qData.length;
-      } catch (e) {
-        console.warn("Queue size fetch failed, defaulting to mock.");
-      }
+      // 2. Load active queue
+      const queue = await cartDb.getQueue();
+      const queueSize = queue.length;
 
-      // 3. Load alerts from smart alerts system
-      let alertsData = [];
-      try {
-        const alertsResponse = await fetch("http://localhost:8080/api/alerts");
-        alertsData = await alertsResponse.json();
-      } catch (e) {
-        console.warn("Alerts fetch failed, defaulting to mock.");
-        alertsData = [
-          {
-            id: 6,
-            type: "EXPIRY",
-            productName: "T-Shirt",
-            message: "Perishable threat: product expires soon on 2026-08-01",
-            severity: "CRITICAL",
-          },
-          {
-            id: 2,
-            type: "OVERSTOCK",
-            productName: "Mouse",
-            message:
-              "Storage overcapacity: Stock level is at 200 units (max: 300)",
-            severity: "WARNING",
-          },
-          {
-            id: 1,
-            type: "SPIKE",
-            productName: "Laptop",
-            message:
-              "Demand surge: High sales spike expected due to high rating and popularity (85%)",
-            severity: "INFO",
-          },
-        ];
-      }
+      // 3. Load alerts
+      const alertsData = await diagnosticDb.getAlerts();
       setAlerts(alertsData);
 
       const statsData = [
@@ -121,181 +82,16 @@ const Dashboard = () => {
       ];
       setStats(statsData);
 
-      // 4. Load restock orders (Greedy algorithm)
-      try {
-        const restockResponse = await fetch(
-          "http://localhost:8080/api/restock?budget=8000",
-        );
-        const restockData = await restockResponse.json();
-        setRestockOrders(restockData.slice(0, 3));
-      } catch (e) {
-        console.warn("Restock fetch failed.");
-      }
+      // 4. Load restocking plan (Greedy restock budget: ₹8,000)
+      const restockData = await diagnosticDb.getRestockPlan(8000);
+      setRestockOrders(restockData.slice(0, 3));
 
       // 5. Load forecasts (daily, weekly, monthly calculations)
-      try {
-        const forecastResponse = await fetch(
-          "http://localhost:8080/api/forecast",
-        );
-        const forecastData = await forecastResponse.json();
-        setForecasts(forecastData.slice(0, 4));
-      } catch (e) {
-        console.warn("Forecast fetch failed, using fallback.");
-        const fallbackForecasts = products.slice(0, 4).map((p) => {
-          const baseSales = 10 + Math.round(p.popularity / 3);
-          return {
-            productId: p.id,
-            productName: p.name,
-            dailyForecast: Math.max(
-              2,
-              Math.round((baseSales * p.turnoverRate) / 7.0),
-            ),
-            weeklyForecast: Math.max(
-              10,
-              Math.round(baseSales * p.turnoverRate),
-            ),
-            monthlyForecast: Math.max(
-              40,
-              Math.round(baseSales * p.turnoverRate * 4.3),
-            ),
-            accuracy: 85.0 + (p.id % 12),
-          };
-        });
-        setForecasts(fallbackForecasts);
-      }
+      const forecastData = await diagnosticDb.getForecasts();
+      setForecasts(forecastData.slice(0, 4));
+
     } catch (error) {
-      console.error("Failed to load dashboard data from backend:", error);
-      // Fallback to offline mock data
-      const statsData = [
-        {
-          label: "Total Products",
-          value: 10,
-          change: "+12%",
-          trend: "up",
-          icon: Package,
-          color: "bg-primary/10 text-primary",
-          gradient: "from-primary/5 to-primary/10",
-        },
-        {
-          label: "Total Stock Units",
-          value: "1,450",
-          change: "+8%",
-          trend: "up",
-          icon: Warehouse,
-          color: "bg-info/10 text-info",
-          gradient: "from-info/5 to-info/10",
-        },
-        {
-          label: "Smart Alerts Active",
-          value: 3,
-          change: "1 Critical",
-          trend: "down",
-          icon: AlertTriangle,
-          color: "bg-warning/10 text-warning",
-          gradient: "from-warning/5 to-warning/10",
-        },
-        {
-          label: "Checkout Queue Wait",
-          value: "3 Buyers",
-          change: "12 Min Wait",
-          trend: "up",
-          icon: ShoppingCart,
-          color: "bg-success/10 text-success",
-          gradient: "from-success/5 to-success/10",
-        },
-      ];
-      setStats(statsData);
-
-      setForecasts([
-        {
-          productId: 1,
-          productName: "Laptop",
-          dailyForecast: 4,
-          weeklyForecast: 28,
-          monthlyForecast: 120,
-          accuracy: 92.5,
-        },
-        {
-          productId: 2,
-          productName: "Mouse",
-          dailyForecast: 15,
-          weeklyForecast: 105,
-          monthlyForecast: 450,
-          accuracy: 89.0,
-        },
-        {
-          productId: 6,
-          productName: "T-Shirt",
-          dailyForecast: 22,
-          weeklyForecast: 154,
-          monthlyForecast: 660,
-          accuracy: 94.2,
-        },
-        {
-          productId: 9,
-          productName: "Sneakers",
-          dailyForecast: 8,
-          weeklyForecast: 56,
-          monthlyForecast: 240,
-          accuracy: 87.8,
-        },
-      ]);
-
-      setRestockOrders([
-        {
-          productId: 1,
-          productName: "Laptop",
-          recommendedSupplier: "Silicon Valley Logistics",
-          unitsToOrder: 50,
-          totalCost: 22500,
-          deliveryDays: 1,
-          priority: 72.5,
-        },
-        {
-          productId: 6,
-          productName: "T-Shirt",
-          recommendedSupplier: "Speedy Apparel Corp",
-          unitsToOrder: 200,
-          totalCost: 1600,
-          deliveryDays: 2,
-          priority: 95.0,
-        },
-        {
-          productId: 9,
-          productName: "Sneakers",
-          recommendedSupplier: "SoleCraft Leather Co",
-          unitsToOrder: 50,
-          totalCost: 2750,
-          deliveryDays: 6,
-          priority: 82.3,
-        },
-      ]);
-
-      setAlerts([
-        {
-          id: 6,
-          type: "EXPIRY",
-          productName: "T-Shirt",
-          message: "Perishable threat: product expires soon on 2026-08-01",
-          severity: "CRITICAL",
-        },
-        {
-          id: 2,
-          type: "OVERSTOCK",
-          productName: "Mouse",
-          message:
-            "Storage overcapacity: Stock level is at 200 units (max: 300)",
-          severity: "WARNING",
-        },
-        {
-          id: 1,
-          type: "SPIKE",
-          productName: "Laptop",
-          message:
-            "Demand surge: High sales spike expected due to high rating and popularity (85%)",
-          severity: "INFO",
-        },
-      ]);
+      console.error("Failed to load dashboard data:", error);
     } finally {
       setLoading(false);
     }
