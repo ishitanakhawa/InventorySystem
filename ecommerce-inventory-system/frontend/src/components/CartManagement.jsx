@@ -18,7 +18,6 @@ import {
   Shield,
   Star,
   RefreshCw,
-  Package,
 } from "lucide-react";
 
 const CartManagement = () => {
@@ -26,6 +25,8 @@ const CartManagement = () => {
   const [checkoutQueue, setCheckoutQueue] = useState([]);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [historyLength, setHistoryLength] = useState(1); // new state for history length
 
   useEffect(() => {
     loadData();
@@ -38,12 +39,18 @@ const CartManagement = () => {
       setCartItems(items);
       const queue = await cartDb.getQueue();
       setCheckoutQueue(queue);
+      const index = await cartDb.getHistoryIndex();
+      setHistoryIndex(index);
+
+      const length = await cartDb.getHistoryLength(); // new method to get length
+      setHistoryLength(length);
     } catch (error) {
       console.error("Failed to load cart/queue:", error);
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleAddToCart = async (product) => {
     try {
@@ -60,6 +67,15 @@ const CartManagement = () => {
       loadData();
     } catch (error) {
       console.error("Failed to undo cart action:", error);
+    }
+  };
+
+  const handleRedo = async () => {
+    try {
+      await cartDb.redo();
+      loadData();
+    } catch (error) {
+      console.error("Failed to redo cart action:", error);
     }
   };
 
@@ -110,10 +126,13 @@ const CartManagement = () => {
 
   const handleAddCustomer = async (customerData) => {
     try {
-      // Priority Queue enqueue with loyalty member prioritization
-      const total = cartTotal > 0 ? (cartTotal * 1.08) : Number(Math.floor(100 + Math.random() * 800));
-      const itemsCount = totalItems > 0 ? totalItems : Number(Math.floor(1 + Math.random() * 4));
-      
+      const total =
+        cartTotal > 0
+          ? cartTotal * 1.08
+          : Number(Math.floor(100 + Math.random() * 800));
+      const itemsCount =
+        totalItems > 0 ? totalItems : Number(Math.floor(1 + Math.random() * 4));
+
       const newQueue = await cartDb.enqueue({
         name: customerData.name,
         isLoyaltyMember: customerData.isLoyaltyMember,
@@ -122,8 +141,7 @@ const CartManagement = () => {
       });
       setCheckoutQueue(newQueue);
       setShowAddCustomerModal(false);
-      
-      // If we checked out our own cart, clear it!
+
       if (cartItems.length > 0) {
         await cartDb.clear();
         setCartItems([]);
@@ -258,14 +276,24 @@ const CartManagement = () => {
               </div>
               <h3 className="font-semibold">Shopping Cart</h3>
             </div>
+            {/* Undo and Redo buttons */}
             <div className="flex gap-2">
               <button
                 onClick={handleUndo}
-                disabled={cartItems.length === 0}
-                className="btn-tertiary flex items-center gap-2 disabled:opacity-50 text-sm"
+                disabled={historyIndex <= 0}
+                className="btn-tertiary bg-gray-300 hover:bg-gray-400 rounded px-3 py-1 flex items-center gap-2 text-sm  disabled:cursor-not-allowed"
               >
                 <Undo className="w-4 h-4" />
                 Undo
+              </button>
+
+              <button
+                onClick={handleRedo}
+                disabled={historyIndex >= historyLength - 1} // Using historyLength (new state)
+                className="btn-tertiary bg-gray-300 hover:bg-gray-400 rounded px-3 py-1 flex items-center gap-2 text-sm disabled:cursor-not-allowed"
+              >
+                <Redo className="w-4 h-4" />
+                Redo
               </button>
             </div>
           </div>
